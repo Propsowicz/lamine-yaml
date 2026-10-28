@@ -1,6 +1,6 @@
 from utils.constants import PITCH_LENGTH, PITCH_WIDTH
-from player import Player
-from ball import Ball
+from models.player import Player
+from models.ball import Ball
 
 class Frame:
     def __init__(self, id, timestamp, players: list[Player], ball: Ball) -> None:
