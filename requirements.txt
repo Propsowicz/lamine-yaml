@@ -3,3 +3,10 @@ opencv-python
 ultralytics
 numpy
 scikit-learn
+
+kloppy
+tensorflow 
+tensorflow-hub 
+soundfile 
+matplotlib
+setuptools<82
