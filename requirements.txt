@@ -3,3 +3,6 @@ opencv-python
 ultralytics
 numpy
 scikit-learn
+kloppy
+matplotlib
+opencv-python
