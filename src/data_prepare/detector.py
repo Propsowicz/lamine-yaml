@@ -5,106 +5,127 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 from sklearn.cluster import KMeans
-from models.player import Player
-from utils.constants import PITCH_LENGTH, PITCH_WIDTH
+from models.player import DetectedPlayer
+from models.frame import DetectedFrame
+import cv2
+import pandas as pd
+from dataclasses import dataclass
 
 GOALKEEPER_CLASS_ID = 1
 PLAYER_CLASS_ID = 2
 BASE_DIR = Path(__file__).resolve().parent
 
-# TODO: should be read - mock for now
-HOMOGRAPHY = np.array(
-    [
-        [1800, -500, 45],
-        [1.7, 170, 255],
-        [-0.02, -0.5, 1.0],
-    ],
-    dtype=np.float64,
-)
+@dataclass(frozen=True)
+class YOLOConfig:
+    imgsz: int = 1568
+    conf: float = 0.1
+    iou: float = 0.7
+    max_det: int = 300
 
 class PlayersDetector:
-    def __init__(self, image_path: str) -> None:
+    def __init__(self, video_path: str, homography_path: str, config: YOLOConfig = YOLOConfig()) -> None:
         self.player_model = YOLO(
             str(BASE_DIR / "detection_models" / "football-player-detection.pt")
         )
+        self.homography_df = pd.read_csv(homography_path)
+        self.video_path = video_path
+        self.config = config
 
-        self.image_path = image_path
-        self.image = cv2.imread(str(self.image_path))
+    def load_homography(self, frame_id) -> np.array:
+        row = self.homography_df.iloc[frame_id]  
 
+        if not row["valid"]:
+            return None
 
-    def detect(self) -> list[Player]:
-        IMAGE_TO_PITCH = np.linalg.inv(HOMOGRAPHY)
-        return self.assign_players_to_teams(
-                        self.detect_players(IMAGE_TO_PITCH))
+        homography_per_frame = row[
+            ["h00", "h01", "h02",
+            "h10", "h11", "h12",
+            "h20", "h21", "h22"]
+        ].to_numpy(dtype=np.float64).reshape(3, 3)
 
+        return np.linalg.inv(homography_per_frame)
 
-    def detect_players(self, homography: np.ndarray) -> list[Player]:
-        if self.image is None:
+    def detect(self, start_frame: int = 11185, end_frame: int = 11189) -> list[DetectedFrame]:
+        cap = cv2.VideoCapture(self.video_path)
+        if cap is None:
             raise FileNotFoundError(f"Cannot read {self.image_path}")
 
-        # TODO: experiment maybe with this?
-        player_result = self.player_model.predict(
-            self.image,
-            imgsz=1568,
-            conf=0.1,
-            iou=0.7,
-            max_det=300,
-            verbose=False,
-        )[0]
+        try:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+            result: list[DetectedFrame] = []
 
-        players: list[Player] = []
+            for frame_index in range(start_frame, end_frame):
+                success, frame = cap.read()
+                if not success:
+                    print(f"cannot read data for frame: {frame_index}")
+                    break
 
-        for detection in player_result.boxes:
-            class_id = int(detection.cls.item())
+                player_result = self.player_model.predict(
+                    frame,
+                    imgsz=self.config.imgsz,
+                    conf=self.config.conf,
+                    iou=self.config.iou,
+                    max_det=self.config.max_det,
+                    verbose=False,
+                )[0]
+                homography = self.load_homography(frame_index)
 
-            if class_id not in {PLAYER_CLASS_ID, GOALKEEPER_CLASS_ID}:
-                continue
+                players: list[DetectedPlayer] = []
+                
+                for detection in player_result.boxes:
+                    class_id = int(detection.cls.item())
+        
+                    if class_id not in {PLAYER_CLASS_ID, GOALKEEPER_CLASS_ID}:
+                        continue
+        
+                    x1, y1, x2, y2 = map(
+                        int,
+                        detection.xyxy[0].cpu().numpy().round(),
+                    )
+        
+                    box = (x1, y1, x2, y2)
+        
+                    center_x = (x1 + x2) / 2.0
+                    center_y = (y1 + y2) / 2.0
+        
+                    pitch_x, pitch_y = self._image_to_pitch_meters(
+                        (center_x, center_y),
+                        homography,
+                    )
+        
+                    players.append(
+                        DetectedPlayer(
+                            x=pitch_x,
+                            y=pitch_y,                            
+                            player_team="tbd",
+                            box=box
+                        )
+                    )
+        
+                if not players:
+                    raise RuntimeError(
+                        "No players detected. Try lowering the confidence threshold."
+                    )
 
-            x1, y1, x2, y2 = map(
-                int,
-                detection.xyxy[0].cpu().numpy().round(),
-            )
-
-            box = (x1, y1, x2, y2)
-
-            center_x = (x1 + x2) / 2.0
-            center_y = (y1 + y2) / 2.0
-
-            pitch_x, pitch_y = self._image_to_pitch_meters(
-                (center_x, center_y),
-                homography,
-            )
-
-            players.append(
-                Player(
-                    player_id=999,
-                    x=pitch_x,
-                    y=pitch_y,
-                    speed=999,
-                    players_by_team={},
-                    ball={},
-                    player_team="tbd",
-                    from_detection=True,
-                    box=box
-                )
-            )
-
-        if not players:
-            raise RuntimeError(
-                "No players detected. Try lowering the confidence threshold."
-            )
-
-        return players
+                result.append(DetectedFrame(
+                    frame_id=frame_index,
+                    players=self.assign_players_to_teams(frame, players)
+                ))
+        except:
+            raise "cannot detect players"
+        finally:
+            cap.release()      
+        return result
         
     # TODO: this method is crucial to recognize teams BUT we need more than two teams
-    def assign_players_to_teams(self, players: list[Player]) -> list[Player]:
+    def assign_players_to_teams(self, frame, players: list[DetectedPlayer]) -> list[DetectedPlayer]:
         outfield = [
             p for p in players #if p.kind == "player"
         ]
 
         if len(outfield) >= 2:
             features = np.stack([
-                self._get_shirt_color(self.image, p.box)
+                self._get_shirt_color(frame, p.box)
                 for p in outfield
             ])
 
@@ -115,7 +136,7 @@ class PlayersDetector:
             ).fit_predict(features)
 
             for player, label in zip(outfield, labels):
-                player.team = f"Team {label + 1}"
+                player.player_team = f"Team {label + 1}"
         return outfield
 
     def _get_shirt_color(self, image: np.ndarray, box: tuple) -> tuple:

@@ -23,3 +23,10 @@ class Player:
     def _calculate_distance_to_ball(self, x, y, ball_x: float, ball_y: float) -> float:
         result = math.hypot(ball_x - x*PITCH_LENGTH, ball_y - y*PITCH_WIDTH)
         return result
+
+class DetectedPlayer:
+    def __init__(self, x, y, player_team: str, box = tuple):
+        self.x: float = x*PITCH_LENGTH
+        self.y: float = y*PITCH_WIDTH
+        self.player_team: str = "tbd"
+        self.box: tuple = box

@@ -1,5 +1,5 @@
 from utils.constants import PITCH_LENGTH, PITCH_WIDTH
-from models.player import Player
+from models.player import Player, DetectedPlayer
 from models.ball import Ball
 
 class Frame:
@@ -11,3 +11,8 @@ class Frame:
 
     def repr(self) -> None:
         print(f"{self.id} | {self.timestamp} | BALL: {self.ball.x}:{self.ball.y}:{self.ball.z}")
+
+class DetectedFrame:
+    def __init__(self, frame_id, players: list[DetectedPlayer]):
+        self.frame_id = frame_id
+        self.players = players
