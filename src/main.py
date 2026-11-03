@@ -53,5 +53,7 @@ if __name__ == '__main__':
     for f, df in zip(frames, detected_frames):
         if f.id == 11186:
             i = f.id
+            for l in df.players:
+                print(f"{l.team} - {l.team_confidence}")
             draw_frame(f.players, i, timestamp=None, save=True, save_name_prefix="from_atg")
             draw_frame(df.players, i, timestamp=None, save=True, save_name_prefix="from_detection")

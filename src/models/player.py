@@ -30,3 +30,4 @@ class DetectedPlayer:
         self.y: float = y*PITCH_WIDTH
         self.team: str = "tbd"
         self.box: tuple = box
+        self.team_confidence: float = 0.0

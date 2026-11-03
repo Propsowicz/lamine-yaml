@@ -10,6 +10,8 @@ from models.frame import DetectedFrame
 import cv2
 import pandas as pd
 from dataclasses import dataclass
+from sklearn.cluster import DBSCAN
+from collections import Counter
 
 GOALKEEPER_CLASS_ID = 1
 PLAYER_CLASS_ID = 2
@@ -118,26 +120,73 @@ class PlayersDetector:
         return result
         
     # TODO: this method is crucial to recognize teams BUT we need more than two teams
-    def assign_players_to_teams(self, frame, players: list[DetectedPlayer]) -> list[DetectedPlayer]:
-        outfield = [
-            p for p in players #if p.kind == "player"
+    def assign_players_to_teams(
+        self,
+        frame: np.ndarray,
+        players: list[DetectedPlayer],
+    ) -> list[DetectedPlayer]:
+        if not players:
+            return players
+
+        features = np.stack([
+            self._get_shirt_color(frame, player.box)
+            for player in players
+        ])
+
+        if len(players) == 1:
+            players[0].team = "Single 1"
+            players[0].team_confidence = 0.5
+            return players
+
+        labels = DBSCAN(
+            #TODO: to determine
+            eps=26,
+            min_samples=1,
+            metric="euclidean",
+        ).fit_predict(features)
+
+        cluster_counts = Counter(labels)
+
+        ordered_clusters = [
+            cluster
+            for cluster, _ in cluster_counts.most_common()
         ]
 
-        if len(outfield) >= 2:
-            features = np.stack([
-                self._get_shirt_color(frame, p.box)
-                for p in outfield
-            ])
+        cluster_names = {}
 
-            labels = KMeans(
-                n_clusters=2,
-                random_state=0,
-                n_init=10,
-            ).fit_predict(features)
+        for index, cluster in enumerate(ordered_clusters):
+            if index < 2:
+                cluster_names[cluster] = f"Team {index + 1}"
+            elif index < 5:
+                cluster_names[cluster] = f"Single {index - 1}"
+            else:
+                cluster_names[cluster] = None
 
-            for player, label in zip(outfield, labels):
-                player.team = f"Team {label + 1}"
-        return outfield
+        # Calculate representative color for every cluster.
+        cluster_centers = {
+            cluster: np.median(
+                features[labels == cluster],
+                axis=0,
+            )
+            for cluster in ordered_clusters
+        }
+
+        for player, color, label in zip(players, features, labels):
+            player.team = cluster_names[label]
+
+            center = cluster_centers[label]
+            distance = float(np.linalg.norm(color - center))
+
+            # Distance-based confidence.
+            player.team_confidence = float(
+                np.exp(-distance / 15.0)
+            )
+
+            # A single observation provides weaker evidence.
+            if cluster_counts[label] == 1:
+                player.team_confidence *= 0.5
+
+        return players
 
     def _get_shirt_color(self, image: np.ndarray, box: tuple) -> tuple:
         x1, y1, x2, y2 = box
