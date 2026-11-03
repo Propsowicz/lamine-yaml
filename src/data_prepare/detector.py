@@ -136,7 +136,7 @@ class PlayersDetector:
             ).fit_predict(features)
 
             for player, label in zip(outfield, labels):
-                player.player_team = f"Team {label + 1}"
+                player.team = f"Team {label + 1}"
         return outfield
 
     def _get_shirt_color(self, image: np.ndarray, box: tuple) -> tuple:

@@ -1,8 +1,8 @@
 from pathlib import Path
 from data_prepare.detector import PlayersDetector, YOLOConfig
 from data_prepare.atg_normalizer import normalize_atg_file
-from models.frame import Frame
-from utils.chart_helper import plot_coordinates
+from models.frame import Frame, DetectedFrame
+from utils.chart_helper import plot_coordinates, draw_frame
 
 ROOT_PATH = Path(__file__).resolve().parent.parent
 BASE_DIR = Path(__file__).resolve().parent
@@ -21,25 +21,37 @@ class PosessionCalc:
         print("frames loaded")
         plot_coordinates([f.ball.x for f in frames], [f.ball.y for f in frames], [f.id for f in frames])
 
-    def _detect_players_position(self):
+    def _detect_players_position(self) -> list[DetectedFrame]:
         detection_config = YOLOConfig(
             imgsz=1568,
             conf=0.1,
             iou=0.7,
             max_det=300
         )
+        start_frame = 11185
+        trial_end = 11190
         detector = PlayersDetector(VIDEO_PATH, HOMOGRAPHY_PATH, detection_config)
-        result = detector.detect()
-        for p in result:
-            print(f"{p.frame_id}")
-            for pl in p.players:
-                print(f"{pl.x}, {pl.y}, {pl.player_team}")
+        frames = detector.detect(start_frame, trial_end)
+        for f in frames:
+            print(f"{f.id}")
+            for p in f.players:
+                print(f"{p.x}, {p.y}, {p.team}")
+        return frames
 
     def _normalize_atg_data(self) -> list[Frame]:
         start_frame = 11185
-        trial_end = 18684
+        # trial_end = 18684
+        trial_end = 11190
         return normalize_atg_file(data_path=DATA_PATH, start_frame=start_frame, end_frame=trial_end)
         
 if __name__ == '__main__':
     calc = PosessionCalc()
-    calc._detect_players_position()
+    detected_frames = calc._detect_players_position()
+    frames = calc._normalize_atg_data()
+    print(len(detected_frames))
+    print(len(frames))
+    for f, df in zip(frames, detected_frames):
+        if f.id == 11186:
+            i = f.id
+            draw_frame(f.players, i, timestamp=None, save=True, save_name_prefix="from_atg")
+            draw_frame(df.players, i, timestamp=None, save=True, save_name_prefix="from_detection")

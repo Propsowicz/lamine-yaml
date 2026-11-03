@@ -14,5 +14,5 @@ class Frame:
 
 class DetectedFrame:
     def __init__(self, frame_id, players: list[DetectedPlayer]):
-        self.frame_id = frame_id
+        self.id = frame_id
         self.players = players

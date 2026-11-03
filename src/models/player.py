@@ -28,5 +28,5 @@ class DetectedPlayer:
     def __init__(self, x, y, player_team: str, box = tuple):
         self.x: float = x*PITCH_LENGTH
         self.y: float = y*PITCH_WIDTH
-        self.player_team: str = "tbd"
+        self.team: str = "tbd"
         self.box: tuple = box
