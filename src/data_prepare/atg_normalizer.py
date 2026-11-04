@@ -131,5 +131,5 @@ def normalize_atg_file(data_path: str, start_frame: int = 1, end_frame: int = 19
                 p.dist_to_ball if p.dist_to_ball is not None and not math.isnan(p.dist_to_ball) else 0,
             )
         )
-        frames.append(Frame(frame.frame_id, frame.timestamp, players, ball))
+        frames.append(Frame(frame.frame_id, frame.timestamp, players, ball, players_by_team=players_by_team))
     return frames

@@ -3,6 +3,8 @@ from data_prepare.detector import PlayersDetector, YOLOConfig
 from data_prepare.atg_normalizer import normalize_atg_file
 from models.frame import Frame, DetectedFrame
 from utils.chart_helper import plot_coordinates, draw_frame
+from data_prepare.data_sets_combiner import Combiner
+from models.player import Player
 
 ROOT_PATH = Path(__file__).resolve().parent.parent
 BASE_DIR = Path(__file__).resolve().parent
@@ -57,3 +59,17 @@ if __name__ == '__main__':
                 print(f"{l.team} - {l.team_confidence}")
             draw_frame(f.players, i, timestamp=None, save=True, save_name_prefix="from_atg")
             draw_frame(df.players, i, timestamp=None, save=True, save_name_prefix="from_detection")
+
+            combiner = Combiner(
+                max_match_distance=3.0,
+                team_confidence_threshold=0.90,
+            )
+
+            combined_players: list[Player] = combiner.combine(
+                players=f.players,
+                detected_players=df.players,
+                ball=f.ball,
+                players_by_team=f.players_by_team,
+            )
+            draw_frame(combined_players, i, timestamp=None, save=True, save_name_prefix="from_combination")
+
