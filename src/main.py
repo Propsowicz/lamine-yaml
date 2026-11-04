@@ -5,6 +5,7 @@ from models.frame import Frame, DetectedFrame
 from utils.chart_helper import plot_coordinates, draw_frame
 from data_prepare.data_sets_combiner import Combiner
 from models.player import Player
+from data_prepare.player_tracker_validator import validate_player_tracking
 
 ROOT_PATH = Path(__file__).resolve().parent.parent
 BASE_DIR = Path(__file__).resolve().parent
@@ -30,20 +31,20 @@ class PosessionCalc:
             iou=0.7,
             max_det=300
         )
-        start_frame = 11185
-        trial_end = 11190
+        start_frame = 11385
+        trial_end = 11400
         detector = PlayersDetector(VIDEO_PATH, HOMOGRAPHY_PATH, detection_config)
         frames = detector.detect(start_frame, trial_end)
-        for f in frames:
-            print(f"{f.id}")
-            for p in f.players:
-                print(f"{p.x}, {p.y}, {p.team}")
+        # for f in frames:
+        #     print(f"{f.id}")
+        #     for p in f.players:
+        #         print(f"{p.x}, {p.y}, {p.team}")
         return frames
 
     def _normalize_atg_data(self) -> list[Frame]:
-        start_frame = 11185
+        start_frame = 11385
         # trial_end = 18684
-        trial_end = 11190
+        trial_end = 11400
         return normalize_atg_file(data_path=DATA_PATH, start_frame=start_frame, end_frame=trial_end)
         
 if __name__ == '__main__':
@@ -52,8 +53,20 @@ if __name__ == '__main__':
     frames = calc._normalize_atg_data()
     print(len(detected_frames))
     print(len(frames))
+    indeksik = 0
     for f, df in zip(frames, detected_frames):
-        if f.id == 11186:
+        if indeksik > 0:
+            frames[indeksik].players = validate_player_tracking(
+                current_players=frames[indeksik].players,
+                previous_players=frames[indeksik-1].players,
+                merge_distance=2.0,
+                reappearance_distance=2.0,
+            )
+
+        draw_frame(frames[indeksik].players, f.id, timestamp=None, save=True, save_name_prefix="from_atg")
+
+
+        if f.id == 11186 or f.id == 11425:
             i = f.id
             for l in df.players:
                 print(f"{l.team} - {l.team_confidence}")
@@ -72,4 +85,4 @@ if __name__ == '__main__':
                 players_by_team=f.players_by_team,
             )
             draw_frame(combined_players, i, timestamp=None, save=True, save_name_prefix="from_combination")
-
+        indeksik += 1

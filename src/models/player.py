@@ -3,7 +3,8 @@ import math
 from .ball import Ball
 
 class Player:
-    def __init__(self, player_id, x, y, speed, players_by_team, ball: Ball, player_team: str = None, from_detection: bool = False) -> None:
+    def __init__(self, player_id, x, y, speed, players_by_team, ball: Ball, player_team: str = None, from_detection: bool = False, is_from_player_tracker_validator: bool = False,
+    ) -> None:
         self.player_id = player_id
         self.team: str = player_team if player_team else self._assign_team(player_id, players_by_team)
         self.x: float = x*PITCH_LENGTH
@@ -11,6 +12,7 @@ class Player:
         self.speed: float = speed
         self.dist_to_ball: float = 0 if from_detection else self._calculate_distance_to_ball(x, y, ball.x, ball.y)
         self.is_from_atg_detection: bool = True
+        self.is_from_player_tracker_validator: bool = is_from_player_tracker_validator
 
     # TODO: needs to be calcualted differently
     def _assign_team(self, player_id: str | int, players_by_team: dict) -> str | None:

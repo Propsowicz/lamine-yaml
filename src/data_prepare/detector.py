@@ -32,6 +32,7 @@ class PlayersDetector:
         self.homography_df = pd.read_csv(homography_path)
         self.video_path = video_path
         self.config = config
+    
 
     def load_homography(self, frame_id) -> np.array:
         row = self.homography_df.iloc[frame_id]  
@@ -47,6 +48,7 @@ class PlayersDetector:
 
         return np.linalg.inv(homography_per_frame)
 
+
     def detect(self, start_frame: int = 11185, end_frame: int = 11189) -> list[DetectedFrame]:
         cap = cv2.VideoCapture(self.video_path)
         if cap is None:
@@ -57,6 +59,7 @@ class PlayersDetector:
             result: list[DetectedFrame] = []
 
             for frame_index in range(start_frame, end_frame):
+                print(f"frame {frame_index} is being detected...")
                 success, frame = cap.read()
                 if not success:
                     print(f"cannot read data for frame: {frame_index}")
@@ -139,8 +142,8 @@ class PlayersDetector:
             return players
 
         labels = DBSCAN(
-            #TODO: to determine
-            eps=26,
+            #TODO: to determine -> less is more strict, more is less strict (26)
+            eps=4,
             min_samples=1,
             metric="euclidean",
         ).fit_predict(features)
