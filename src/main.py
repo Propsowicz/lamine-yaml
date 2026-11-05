@@ -15,8 +15,9 @@ VIDEO_PATH = str(BASE_DIR / ".." / "data" / "tactical" / "BAR-ATH_tactical-001.m
 
 
 class PosessionCalc:
-    def __init__(self):
-        pass
+    def __init__(self, start_frame: int, end_frame: int):
+        self.start_frame = start_frame
+        self.end_frame = end_frame        
 
     def calculate(self):
         print("start calculations")
@@ -31,24 +32,18 @@ class PosessionCalc:
             iou=0.7,
             max_det=300
         )
-        start_frame = 11385
-        trial_end = 11400
+
         detector = PlayersDetector(VIDEO_PATH, HOMOGRAPHY_PATH, detection_config)
-        frames = detector.detect(start_frame, trial_end)
-        # for f in frames:
-        #     print(f"{f.id}")
-        #     for p in f.players:
-        #         print(f"{p.x}, {p.y}, {p.team}")
+        frames = detector.detect(self.start_frame, self.end_frame)
         return frames
 
     def _normalize_atg_data(self) -> list[Frame]:
-        start_frame = 11385
-        # trial_end = 18684
-        trial_end = 11400
-        return normalize_atg_file(data_path=DATA_PATH, start_frame=start_frame, end_frame=trial_end)
+        return normalize_atg_file(data_path=DATA_PATH, start_frame=self.start_frame, end_frame=self.end_frame)
         
 if __name__ == '__main__':
-    calc = PosessionCalc()
+    calc = PosessionCalc(start_frame=11400, end_frame=11405)
+    # calc = PosessionCalc(start_frame=11287, end_frame=11410)
+
     detected_frames = calc._detect_players_position()
     frames = calc._normalize_atg_data()
     print(len(detected_frames))
@@ -63,7 +58,7 @@ if __name__ == '__main__':
                 reappearance_distance=2.0,
             )
 
-        draw_frame(frames[indeksik].players, f.id, timestamp=None, save=True, save_name_prefix="from_atg")
+        draw_frame(frames[indeksik].players, f.id, timestamp=None, save=True, show_labels=True, save_name_prefix="from_atg")
 
 
         if f.id == 11186 or f.id == 11425:

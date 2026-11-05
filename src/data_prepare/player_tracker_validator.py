@@ -149,29 +149,33 @@ def validate_player_tracking(
             continue
 
         missing_player, _ = merge_candidates[candidate_index]
-
         appeared_player = current_by_id[appeared_id]
 
-        # Restore the missing player's identity using
-        # the newly appearing player's actual detection.
+        # Save the newly detected player's original ID.
+        original_appeared_id = appeared_player.player_id
+
+        # Create a copy of its previous placeholder.
+        placeholder = copy(previous_by_id[original_appeared_id])
+        placeholder.x = float("nan")
+        placeholder.y = float("nan")
+
+        # IMPORTANT: Create the recovered player using the
+        # newly detected player's actual position and attributes.
         recovered_player = copy(appeared_player)
 
+        # Explicitly restore the original player's identity.
         recovered_player.player_id = missing_player.player_id
         recovered_player.team = missing_player.team
         recovered_player.is_from_player_tracker_validator = True
 
-        # Replace the missing player's placeholder.
-        result[
-            current_indices[missing_player.player_id]
-        ] = recovered_player
+        # Put the recovered player into the missing player's slot.
+        missing_index = current_indices[missing_player.player_id]
+        appeared_index = current_indices[original_appeared_id]
 
-        # The ID under which the player reappeared becomes
-        # a placeholder again, preserving the 46-player structure.
-        placeholder = copy(previous_by_id[appeared_id])
-        placeholder.x = float("nan")
-        placeholder.y = float("nan")
+        result[missing_index] = recovered_player
 
-        result[current_indices[appeared_id]] = placeholder
+        # The newly detected ID becomes a placeholder again.
+        result[appeared_index] = placeholder
 
         matched_candidates.add(candidate_index)
         matched_appeared_ids.add(appeared_id)
