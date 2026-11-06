@@ -1,27 +1,57 @@
+
 from copy import copy
 from math import hypot, isfinite
 from models.player import Player
 
 def is_player_visible(player: Player) -> bool:
-    return (
-        isfinite(player.x)
-        and isfinite(player.y)
-    )
+    return isfinite(player.x) and isfinite(player.y)
 
 
-def calculate_distance(player1: Player, player2: Player) -> float:
+def calculate_player_distance(
+    player1: Player,
+    player2: Player,
+) -> float:
     return hypot(
         player1.x - player2.x,
         player1.y - player2.y,
     )
 
 
+def make_placeholder(player: Player) -> Player:
+    placeholder = copy(player)
+    placeholder.x = float("nan")
+    placeholder.y = float("nan")
+    return placeholder
+
+
 def validate_player_tracking(
     current_players: list[Player],
     previous_players: list[Player],
+    max_tracking_distance: float = 3.0,
     merge_distance: float = 2.0,
     reappearance_distance: float = 2.0,
+    same_id_preference: float = 0.05,
 ) -> list[Player]:
+    """
+    Validates player identities across consecutive frames.
+
+    Handles:
+    1. Incorrect ID assignments and ID swapping.
+    2. Players merged by the tracker.
+    3. Missing players reconstructed as virtual players.
+    4. Reappearing players with previously assigned IDs.
+    5. Preservation of virtual-player anchor relationships.
+
+    All distances are measured in pitch coordinates.
+    """
+
+    if min(
+        max_tracking_distance,
+        merge_distance,
+        reappearance_distance,
+        same_id_preference,
+    ) < 0:
+        raise ValueError("Distance thresholds cannot be negative.")
 
     previous_by_id = {
         player.player_id: player
@@ -33,7 +63,18 @@ def validate_player_tracking(
         for player in current_players
     }
 
-    result = list(current_players)
+    if len(previous_by_id) != len(previous_players):
+        raise ValueError("Duplicate IDs in previous frame.")
+
+    if len(current_by_id) != len(current_players):
+        raise ValueError("Duplicate IDs in current frame.")
+
+    # if previous_by_id.keys() != current_by_id.keys():
+    #     print(previous_by_id.keys())
+    #     print(current_by_id.keys())
+    #     raise ValueError(
+    #         "Previous and current frames must contain the same IDs."
+    #     )
 
     current_indices = {
         player.player_id: index
@@ -41,165 +82,393 @@ def validate_player_tracking(
     }
 
     # --------------------------------------------------
-    # STEP 1: Detect missing and newly appearing players
+    # STEP 1: Initialize result with placeholders.
     # --------------------------------------------------
 
-    previous_visible_ids = {
-        p.player_id
-        for p in previous_players
-        if is_player_visible(p)
+    result_by_id = {
+        player.player_id: make_placeholder(player)
+        for player in previous_players
     }
 
-    current_visible_ids = {
-        p.player_id
-        for p in current_players
-        if is_player_visible(p)
+    previous_anchor_ids = {
+        player.player_id: getattr(
+            player,
+            "validator_anchor_id",
+            None,
+        )
+        for player in previous_players
     }
 
-    # Previously visible, now a placeholder.
-    missing_ids = previous_visible_ids - current_visible_ids
+    # Previous real players. Virtual players are excluded
+    # because they share coordinates with their anchors.
+    previous_real_players = [
+        player
+        for player in previous_players
+        if (
+            is_player_visible(player)
+            and previous_anchor_ids[player.player_id] is None
+        )
+    ]
 
-    # Previously placeholders, now visible.
-    appeared_ids = current_visible_ids - previous_visible_ids
-
-    # Visible in both frames.
-    surviving_ids = previous_visible_ids & current_visible_ids
+    current_visible_players = [
+        player
+        for player in current_players
+        if is_player_visible(player)
+    ]
 
     # --------------------------------------------------
-    # STEP 2: Find potential merged players
+    # STEP 2: GLOBAL IDENTITY MATCHING.
+    #
+    # Compare ALL previously visible real players with
+    # ALL current detections, regardless of their IDs.
+    #
+    # This is what fixes the ID 11 / ID 31 / ID 33 case.
     # --------------------------------------------------
 
-    # Each candidate:
-    # (missing_previous_player, closest_surviving_current_player)
+    possible_matches = []
 
-    merge_candidates: list[tuple[Player, Player]] = []
+    for previous_player in previous_real_players:
+        for detected_player in current_visible_players:
 
-    for missing_id in missing_ids:
+            distance = calculate_player_distance(
+                previous_player,
+                detected_player,
+            )
 
-        missing_player = previous_by_id[missing_id]
+            if distance > max_tracking_distance:
+                continue
 
-        closest_neighbor = min(
-            (
-                previous_by_id[player_id]
-                for player_id in surviving_ids
-            ),
-            key=lambda player: calculate_distance(
+            # Small preference for unchanged IDs.
+            # Distance remains the primary matching criterion.
+            score = distance
+
+            if (
+                previous_player.player_id
+                != detected_player.player_id
+            ):
+                score += same_id_preference
+
+            possible_matches.append(
+                (
+                    score,
+                    distance,
+                    previous_player.player_id,
+                    detected_player.player_id,
+                )
+            )
+
+    # Closest global matches first.
+    possible_matches.sort(key=lambda match: (match[0], match[1]))
+
+    matched_previous_ids: set[int] = set()
+    matched_detection_ids: set[int] = set()
+
+    for _, distance, previous_id, detected_id in possible_matches:
+
+        if previous_id in matched_previous_ids:
+            continue
+
+        if detected_id in matched_detection_ids:
+            continue
+
+        previous_player = previous_by_id[previous_id]
+        detected_player = current_by_id[detected_id]
+
+        # Use the actual detection's coordinates and attributes,
+        # but restore the previous player's identity.
+        recovered_player = copy(detected_player)
+
+        recovered_player.player_id = previous_id
+        recovered_player.team = previous_player.team
+
+        recovered_player.is_from_player_tracker_validator = (
+            getattr(
+                previous_player,
+                "is_from_player_tracker_validator",
+                False,
+            )
+            or previous_id != detected_id
+        )
+
+        # A globally matched player is a real detection,
+        # not a virtual player.
+        recovered_player.validator_anchor_id = None
+
+        result_by_id[previous_id] = recovered_player
+
+        matched_previous_ids.add(previous_id)
+        matched_detection_ids.add(detected_id)
+
+        if previous_id != detected_id:
+            print(
+                f"[ID CORRECTED] "
+                f"Detected ID {detected_id} -> "
+                f"Original ID {previous_id} "
+                f"({previous_player.team}, "
+                f"distance={distance:.2f})"
+            )
+
+    # --------------------------------------------------
+    # STEP 3: Collect existing virtual players.
+    #
+    # They must continue following their original anchors.
+    # --------------------------------------------------
+
+    targets: dict[int, tuple[Player, int]] = {}
+
+    for previous_player in previous_players:
+
+        anchor_id = previous_anchor_ids[
+            previous_player.player_id
+        ]
+
+        if anchor_id is None:
+            continue
+
+        targets[previous_player.player_id] = (
+            previous_player,
+            anchor_id,
+        )
+
+    # --------------------------------------------------
+    # STEP 4: Find newly missing real players.
+    #
+    # A previously visible player that could not be matched
+    # may have been merged into another nearby player.
+    # --------------------------------------------------
+
+    surviving_players = [
+        player
+        for player in previous_real_players
+        if player.player_id in matched_previous_ids
+    ]
+
+    for missing_player in previous_real_players:
+
+        missing_id = missing_player.player_id
+
+        if missing_id in matched_previous_ids:
+            continue
+
+        possible_anchors = [
+            player
+            for player in surviving_players
+            if (
+                player.player_id != missing_id
+                and is_player_visible(
+                    result_by_id[player.player_id]
+                )
+            )
+        ]
+
+        if not possible_anchors:
+            continue
+
+        closest_anchor = min(
+            possible_anchors,
+            key=lambda player: calculate_player_distance(
                 missing_player,
                 player,
             ),
-            default=None,
         )
 
-        if closest_neighbor is None:
-            continue
-
-        distance = calculate_distance(
+        distance = calculate_player_distance(
             missing_player,
-            closest_neighbor,
+            closest_anchor,
         )
 
         if distance > merge_distance:
             continue
 
-        # Get the neighbor's position in the CURRENT frame.
-        current_neighbor = current_by_id[
-            closest_neighbor.player_id
-        ]
+        targets[missing_id] = (
+            missing_player,
+            closest_anchor.player_id,
+        )
 
-        merge_candidates.append(
-            (missing_player, current_neighbor)
+        print(
+            f"[PLAYER MERGED] "
+            f"Missing ID {missing_id} -> "
+            f"Anchor ID {closest_anchor.player_id} "
+            f"(distance={distance:.2f})"
         )
 
     # --------------------------------------------------
-    # STEP 3: Check if newly appearing players are
-    # actually previously missing players
+    # STEP 5: Find detections not used by global matching.
+    #
+    # These may belong to existing virtual players or
+    # newly appearing players.
+    #
+    # Do not reuse detections whose original ID has already
+    # been matched to another detection.
     # --------------------------------------------------
 
-    possible_matches = []
+    available_detections = [
+        player
+        for player in current_visible_players
+        if (
+            player.player_id not in matched_detection_ids
+            and player.player_id not in matched_previous_ids
+        )
+    ]
 
-    for candidate_index, (missing_player, neighbor) in enumerate(
-        merge_candidates
-    ):
-        for appeared_id in appeared_ids:
+    # --------------------------------------------------
+    # STEP 6: Match available detections with virtual players.
+    #
+    # Use the CURRENT anchor position.
+    # --------------------------------------------------
 
-            appeared_player = current_by_id[appeared_id]
+    possible_virtual_matches = []
 
-            distance = calculate_distance(
-                neighbor,
-                appeared_player,
+    for target_id, (target_player, anchor_id) in targets.items():
+
+        anchor = result_by_id.get(anchor_id)
+
+        if anchor is None or not is_player_visible(anchor):
+            anchor = previous_by_id.get(anchor_id)
+
+        if anchor is None or not is_player_visible(anchor):
+            continue
+
+        for detected_player in available_detections:
+
+            distance = calculate_player_distance(
+                anchor,
+                detected_player,
             )
 
-            if distance <= reappearance_distance:
-                possible_matches.append(
-                    (distance, candidate_index, appeared_id)
+            if distance > reappearance_distance:
+                continue
+
+            score = distance
+
+            if detected_player.player_id != target_id:
+                score += same_id_preference
+
+            possible_virtual_matches.append(
+                (
+                    score,
+                    distance,
+                    target_id,
+                    detected_player.player_id,
                 )
+            )
 
-    # Closest matches first.
-    possible_matches.sort(key=lambda match: match[0])
+    possible_virtual_matches.sort(
+        key=lambda match: (match[0], match[1])
+    )
 
-    matched_candidates = set()
-    matched_appeared_ids = set()
+    matched_targets: set[int] = set()
+    matched_virtual_detections: set[int] = set()
 
-    for _, candidate_index, appeared_id in possible_matches:
+    for _, distance, target_id, detected_id in possible_virtual_matches:
 
-        if candidate_index in matched_candidates:
+        if target_id in matched_targets:
             continue
 
-        if appeared_id in matched_appeared_ids:
+        if detected_id in matched_virtual_detections:
             continue
 
-        missing_player, _ = merge_candidates[candidate_index]
-        appeared_player = current_by_id[appeared_id]
+        target_player, _ = targets[target_id]
+        detected_player = current_by_id[detected_id]
 
-        # Save the newly detected player's original ID.
-        original_appeared_id = appeared_player.player_id
+        recovered_player = copy(detected_player)
 
-        # Create a copy of its previous placeholder.
-        placeholder = copy(previous_by_id[original_appeared_id])
-        placeholder.x = float("nan")
-        placeholder.y = float("nan")
-
-        # IMPORTANT: Create the recovered player using the
-        # newly detected player's actual position and attributes.
-        recovered_player = copy(appeared_player)
-
-        # Explicitly restore the original player's identity.
-        recovered_player.player_id = missing_player.player_id
-        recovered_player.team = missing_player.team
+        recovered_player.player_id = target_id
+        recovered_player.team = target_player.team
         recovered_player.is_from_player_tracker_validator = True
+        recovered_player.validator_anchor_id = None
 
-        # Put the recovered player into the missing player's slot.
-        missing_index = current_indices[missing_player.player_id]
-        appeared_index = current_indices[original_appeared_id]
+        result_by_id[target_id] = recovered_player
 
-        result[missing_index] = recovered_player
+        matched_targets.add(target_id)
+        matched_virtual_detections.add(detected_id)
 
-        # The newly detected ID becomes a placeholder again.
-        result[appeared_index] = placeholder
-
-        matched_candidates.add(candidate_index)
-        matched_appeared_ids.add(appeared_id)
+        print(
+            f"[VIRTUAL PLAYER RECOVERED] "
+            f"Detected ID {detected_id} -> "
+            f"Original ID {target_id} "
+            f"(distance={distance:.2f})"
+        )
 
     # --------------------------------------------------
-    # STEP 4: Reconstruct players that have not reappeared
+    # STEP 7: Preserve unmatched virtual players.
+    #
+    # They continue following their original anchors.
     # --------------------------------------------------
 
-    for candidate_index, (missing_player, neighbor) in enumerate(
-        merge_candidates
-    ):
+    for target_id, (target_player, anchor_id) in targets.items():
 
-        if candidate_index in matched_candidates:
+        if target_id in matched_targets:
             continue
 
-        # Use the closest player's CURRENT position.
-        reconstructed_player = copy(neighbor)
+        anchor = result_by_id.get(anchor_id)
 
-        reconstructed_player.player_id = missing_player.player_id
-        reconstructed_player.team = missing_player.team
-        reconstructed_player.is_from_player_tracker_validator = True
+        if anchor is None or not is_player_visible(anchor):
+            anchor = previous_by_id.get(anchor_id)
 
-        result[
-            current_indices[missing_player.player_id]
-        ] = reconstructed_player
+        if anchor is not None and is_player_visible(anchor):
+            virtual_player = copy(anchor)
+        else:
+            virtual_player = copy(target_player)
 
-    return result
+        virtual_player.player_id = target_id
+        virtual_player.team = target_player.team
+
+        virtual_player.is_from_player_tracker_validator = True
+        virtual_player.validator_anchor_id = anchor_id
+
+        result_by_id[target_id] = virtual_player
+
+    # --------------------------------------------------
+    # STEP 8: Accept genuinely new players.
+    #
+    # Remaining detections can retain their own ID only
+    # when that ID was a placeholder in the previous frame.
+    # --------------------------------------------------
+
+    used_virtual_detections = matched_virtual_detections
+
+    for detected_player in available_detections:
+
+        detected_id = detected_player.player_id
+
+        if detected_id in used_virtual_detections:
+            continue
+
+        # Never overwrite an identity already matched or
+        # a virtual identity that must remain connected.
+        if detected_id in matched_previous_ids:
+            continue
+
+        if detected_id in targets:
+            continue
+
+        previous_player = previous_by_id[detected_id]
+
+        if is_player_visible(previous_player):
+            continue
+
+        new_player = copy(detected_player)
+
+        new_player.player_id = detected_id
+        new_player.team = previous_player.team
+
+        new_player.is_from_player_tracker_validator = (
+            getattr(
+                previous_player,
+                "is_from_player_tracker_validator",
+                False,
+            )
+        )
+        new_player.validator_anchor_id = None
+
+        result_by_id[detected_id] = new_player
+
+    # --------------------------------------------------
+    # STEP 9: Return exactly the original player slots.
+    # --------------------------------------------------
+
+    return [
+        result_by_id[player.player_id]
+        for player in current_players
+    ]
