@@ -62,8 +62,6 @@ def draw_frame(
     save_name_prefix: str = ""
 ) -> None:
     """Draw a football pitch with players and their positions."""
-    print(players)
-    print(frame_id)
     fig, ax = plt.subplots(figsize=(12, 8))
 
     # Pitch background and boundary
