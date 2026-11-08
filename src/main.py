@@ -11,6 +11,7 @@ from data_prepare.data_sets_combiner import Combiner
 from models.player import Player
 from data_prepare.player_tracker_validator import validate_player_tracking
 from utils.csv_save import save_frames, read_frames, csv_exists
+from whistle.full_video_whistle import calculate_whistle_scores
 
 ROOT_PATH = Path(__file__).resolve().parent.parent
 BASE_DIR = Path(__file__).resolve().parent
@@ -108,6 +109,12 @@ if __name__ == '__main__':
     # calc = PosessionCalc(start_frame=11400, end_frame=11405)
     calc = PosessionCalc(start_frame=11185, end_frame=11189)
     frames = calc.load_frames()
+    video = Path(VIDEO_PATH)
+    calculate_whistle_scores(
+        video=video,
+        wav=video.with_name(f"{video.stem}_audio_16k_mono.wav"),
+        output_dir=ROOT_PATH / "output" / "whistle" / video.stem,
+    )
     for f in frames:
         draw_frame(f.players, f.id, timestamp=None, save=True, show_labels=True, save_name_prefix="frame_result")
 
