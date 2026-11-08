@@ -8,6 +8,7 @@ import argparse
 import csv
 import json
 import math
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -16,6 +17,18 @@ SAMPLE_RATE = 16000
 HOP = 7680  # 0.48 seconds: YAMNet patch hop.
 WINDOW = 15600  # 0.975 seconds including the final STFT window.
 MODEL_URL = "https://tfhub.dev/google/yamnet/1"
+
+
+def load_yamnet(hub):
+    """Validate the cached download before asking TensorFlow to load it."""
+    model_dir = Path(hub.resolve(MODEL_URL))
+    if not any((model_dir / name).is_file()
+               for name in ("saved_model.pb", "saved_model.pbtxt")):
+        raise RuntimeError(
+            f"Incomplete YAMNet download at {model_dir}: missing saved_model.pb. "
+            "Rerun with --model-cache pointing to a new empty directory to download again."
+        )
+    return hub.load(str(model_dir))
 
 
 def write_csv(path, fields, rows):
@@ -55,6 +68,8 @@ def main():
     parser.add_argument("--wav", type=Path,
                         default=root / "data/tactical/full_audio_16k_mono.wav")
     parser.add_argument("--output-dir", type=Path, default=root / "output/whistle_full")
+    parser.add_argument("--model-cache", type=Path, default=root / "output/tfhub_cache",
+                        help="Persistent TF Hub cache (avoids the shared temporary cache).")
     parser.add_argument("--ffmpeg", default=shutil.which("ffmpeg"))
     parser.add_argument("--thresholds", type=float, nargs="+", default=[0.005, 0.01, 0.02])
     parser.add_argument("--chunk-hops", type=int, default=120)
@@ -65,6 +80,9 @@ def main():
         parser.error("FFmpeg not found: pass --ffmpeg with its executable path")
     if args.chunk_hops < 4 or args.merge_gap < 0 or any(t <= 0 or t > 1 for t in args.thresholds):
         parser.error("Use chunk-hops >= 4, merge-gap >= 0, and thresholds in (0, 1].")
+
+    args.model_cache.mkdir(parents=True, exist_ok=True)
+    os.environ["TFHUB_CACHE_DIR"] = str(args.model_cache.resolve())
 
     import matplotlib
     matplotlib.use("Agg")
@@ -101,7 +119,8 @@ def main():
         raise ValueError("WAV duration does not match the complete source audio")
     print(f"Audio: {duration:.6f}s; {info.frames} samples; mono 16 kHz", flush=True)
 
-    model = hub.load(MODEL_URL)
+    print(f"Loading YAMNet (cache: {args.model_cache.resolve()})...", flush=True)
+    model = load_yamnet(hub)
     with tf.io.gfile.GFile(model.class_map_path().numpy().decode("utf-8")) as handle:
         names = [row["display_name"] for row in csv.DictReader(handle)]
     whistle_index = names.index("Whistle")

@@ -10,6 +10,12 @@ FFprobe must be alongside FFmpeg. The defaults use only
 `data/tactical/BAR-ATH_tactical.mp4`, never the unsynchronized broadcast video.
 The original `check_whistle.py` remains a separate two-minute experiment.
 
+YAMNet downloads are cached persistently in `output/tfhub_cache/`, avoiding
+incomplete downloads in the shared Windows temporary TF Hub cache. Override
+this location with `--model-cache PATH` (takes precedence over `TFHUB_CACHE_DIR`).
+If validation reports a missing `saved_model.pb`, pass a new empty cache
+directory to download again. The existing extracted WAV can still be reused.
+
 The runner extracts the entire first audio stream into
 `data/tactical/full_audio_16k_mono.wav` (mono PCM16, 16 kHz). There is no seek or
 duration limit. An existing WAV is reused after checking its format and duration;
