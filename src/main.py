@@ -101,7 +101,7 @@ class PosessionCalc:
         
 if __name__ == '__main__':
     # calc = PosessionCalc(start_frame=11400, end_frame=11405)
-    calc = PosessionCalc(start_frame=11285, end_frame=11287)
+    calc = PosessionCalc(start_frame=11185, end_frame=11187)
     frames = calc.load_frames()
     for f in frames:
         draw_frame(f.players, f.id, timestamp=None, save=True, show_labels=True, save_name_prefix="frame_result")

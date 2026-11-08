@@ -143,7 +143,7 @@ class PlayersDetector:
 
         labels = DBSCAN(
             #TODO: to determine -> less is more strict, more is less strict (26)
-            eps=4,
+            eps=26,
             min_samples=1,
             metric="euclidean",
         ).fit_predict(features)

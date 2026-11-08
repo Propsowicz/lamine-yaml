@@ -31,8 +31,7 @@ class Combiner:
         detected_players: Sequence[DetectedPlayer],
         ball: Ball,
         players_by_team: dict,
-    ) -> list[Player]:
-
+    ) -> list[Player]:            
         # STEP 1: Normalize detected positions.
         normalized_detections = self._normalize_detected_positions(
             players,
@@ -66,7 +65,11 @@ class Combiner:
             if detection_index is not None:
                 detection = normalized_detections[detection_index]
 
-                self._reconcile_team(combined_player, detection)
+                # Only players originally created from detections
+                # can have their team updated.
+                if combined_player.is_from_atg_detection is False:
+                    self._reconcile_team(combined_player, detection)
+
                 combined_player.box = detection.box
 
             result.append(combined_player)
@@ -118,10 +121,7 @@ class Combiner:
                 players_by_team=players_by_team,
                 team=inferred_team,
             )
-
-            result.append(new_player)
-
-        
+            result.append(new_player)        
         
         return result
 
@@ -195,8 +195,8 @@ class Combiner:
             return "tbd"
 
         team_key = self._team_key(detected_team)
-
-        return team_mapping.get(team_key, detected_team)
+        mapped_team = team_mapping.get(team_key, detected_team)
+        return mapped_team
 
 
     def _team_key(self, team: str | None) -> str | None:
@@ -368,7 +368,6 @@ class Combiner:
         detection: DetectedPlayer,
     ) -> None:
         """Changes an existing player's team only with high confidence."""
-
         detected_team = self._get_detection_team(detection)
 
         if detected_team is None or player.team == detected_team:
