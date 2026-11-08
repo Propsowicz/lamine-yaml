@@ -6,3 +6,4 @@ scikit-learn
 kloppy
 matplotlib
 opencv-python
+python-dotenv
