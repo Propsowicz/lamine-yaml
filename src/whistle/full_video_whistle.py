@@ -190,7 +190,7 @@ def calculate_whistle_scores(
                    hop_seconds=HOP / SAMPLE_RATE, acoustic_window_seconds=WINDOW / SAMPLE_RATE,
                    timestamp_convention="video_seconds is acoustic window center; final window clipped to audio end",
                    chunk_hops=chunk_hops, overlap_seconds=(WINDOW - HOP) / SAMPLE_RATE,
-                   boundary_max_absolute_error=boundary_error, merge_gap_seconds=merge_gap,
+                   merge_gap_seconds=merge_gap,
                    candidate_counts=counts, maximum_score=float(all_scores.max()),
                    maximum_score_video_seconds=float(centers[all_scores.argmax()]),
                    limitations="Exploratory thresholds, not calibrated; crowd whistles/music can trigger scores. "
