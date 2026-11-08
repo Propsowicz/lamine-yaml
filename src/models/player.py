@@ -26,7 +26,10 @@ class Player:
                 return team_name
 
         raise "no team for player"
-        
+
+    def calculate_distance_to_ball(self, ball: Ball):
+        self.dist_to_ball = self._calculate_distance_to_ball(self.x, self.y, ball.x, ball.y)
+    
     def _calculate_distance_to_ball(self, x, y, ball_x: float, ball_y: float) -> float:
         result = math.hypot(ball_x - x*PITCH_LENGTH, ball_y - y*PITCH_WIDTH)
         return result
