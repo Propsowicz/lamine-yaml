@@ -8,7 +8,7 @@ from models.ball import Ball
 from utils.constants import PITCH_LENGTH, PITCH_WIDTH
 from statistics import median
 from collections import Counter, defaultdict
-
+from uuid import uuid4
 class Combiner:
     UNKNOWN_TEAMS = {"", "tbd", "unknown", "none"}
 
@@ -45,7 +45,7 @@ class Combiner:
             normalized_detections,
         )
 
-        # STEP 3: Build team mapping from matched players.
+         # STEP 3: Build team mapping from matched players.
         team_mapping = self._build_detected_team_mapping(
             players,
             normalized_detections,
@@ -71,18 +71,41 @@ class Combiner:
 
             result.append(combined_player)
 
-        # Add unmatched detections.
+        # Process unmatched detections.
         for detection_index, detection in enumerate(normalized_detections):
             if detection_index in matched_detections:
+                continue
+
+            distances = [
+                (
+                    player.player_id,
+                    self._calculate_distance(
+                        player.x,
+                        player.y,
+                        detection.x,
+                        detection.y,
+                    ),
+                )
+                for player in players
+                if isfinite(player.x) and isfinite(player.y)
+            ]
+
+            _, nearest_distance = min(
+                distances,
+                key=lambda item: item[1],
+                default=(None, float("inf")),
+            )
+      
+            if nearest_distance <= self.max_match_distance:
                 continue
 
             player_id = self._generate_player_id(
                 used_player_ids,
                 detection_index,
             )
+
             used_player_ids.add(player_id)
 
-            # Infer team using other matched players.
             inferred_team = self._infer_unmatched_team(
                 detection,
                 team_mapping,
@@ -98,6 +121,8 @@ class Combiner:
 
             result.append(new_player)
 
+        
+        
         return result
 
     def _build_detected_team_mapping(
@@ -264,16 +289,18 @@ class Combiner:
         detected_players: Sequence[DetectedPlayer],
         max_distance: float | None = None,
     ) -> dict[int, int]:
-
         distance_limit = (
             max_distance
             if max_distance is not None
             else self.max_match_distance
         )
 
-        candidates: list[tuple[float, int, int]] = []
+        # Build candidate detections for every metadata player.
+        candidates: dict[int, list[tuple[float, int]]] = {}
 
         for player_index, player in enumerate(players):
+            player_candidates = []
+
             for detection_index, detection in enumerate(detected_players):
                 distance = self._calculate_distance(
                     player.x,
@@ -283,28 +310,48 @@ class Combiner:
                 )
 
                 if distance <= distance_limit:
-                    candidates.append(
-                        (distance, player_index, detection_index)
-                    )
+                    player_candidates.append((distance, detection_index))
 
-        candidates.sort(key=lambda item: item[0])
+            candidates[player_index] = sorted(player_candidates)
 
-        matches: dict[int, int] = {}
-        matched_players: set[int] = set()
-        matched_detections: set[int] = set()
+        # Detection -> metadata player.
+        detection_matches: dict[int, int] = {}
 
-        for _, player_index, detection_index in candidates:
-            if player_index in matched_players:
-                continue
+        def assign(
+            player_index: int,
+            visited: set[int],
+        ) -> bool:
+            for _, detection_index in candidates[player_index]:
+                if detection_index in visited:
+                    continue
 
-            if detection_index in matched_detections:
-                continue
+                visited.add(detection_index)
 
-            matches[player_index] = detection_index
-            matched_players.add(player_index)
-            matched_detections.add(detection_index)
+                previous_player = detection_matches.get(detection_index)
 
-        return matches
+                if (
+                    previous_player is None
+                    or assign(previous_player, visited)
+                ):
+                    detection_matches[detection_index] = player_index
+                    return True
+
+            return False
+
+        # Players with fewer candidates are harder to match.
+        player_order = sorted(
+            candidates,
+            key=lambda index: len(candidates[index]),
+        )
+
+        for player_index in player_order:
+            assign(player_index, set())
+
+        # Convert to metadata player -> detection.
+        return {
+            player_index: detection_index
+            for detection_index, player_index in detection_matches.items()
+        }
 
     @staticmethod
     def _calculate_distance(

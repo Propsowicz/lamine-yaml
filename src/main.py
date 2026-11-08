@@ -71,6 +71,8 @@ class PosessionCalc:
                     ball=current_frame.ball,
                     players_by_team=current_frame.players_by_team,
                 )
+            for p in combined_players:
+                p.calculate_distance_to_ball(current_frame.ball)
 
             # TODO distance to ball needs to recalculated (remove it from init)
             result.append(Frame(
