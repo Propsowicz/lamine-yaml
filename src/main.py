@@ -7,7 +7,7 @@ from data_prepare.data_sets_combiner import Combiner
 from models.player import Player
 from data_prepare.player_tracker_validator import validate_player_tracking
 from utils.csv_save import save_frames, read_frames, csv_exists
-from data_prepare.touch_ball_tracker import detect_ball_touches
+from data_prepare.touch_ball_tracker import detect_ball_touches, TouchType
 
 ROOT_PATH = Path(__file__).resolve().parent.parent
 BASE_DIR = Path(__file__).resolve().parent
@@ -103,12 +103,15 @@ class PosessionCalc:
         
 if __name__ == '__main__':
     # calc = PosessionCalc(start_frame=11400, end_frame=11405)
-    calc = PosessionCalc(start_frame=11184, end_frame=11485)
+    calc = PosessionCalc(start_frame=11184, end_frame=11885)
     frames = calc.load_frames()
 
     touches = detect_ball_touches(frames, radius_m=1.5)
     for t in touches:
-        print(f"{t.timestamp}(frame:{t.frame_id}): {t.touch_type} - {t.players}")
+        if t.touch_type == TouchType.PASS:
+            print(f"{t.touch_timestamp}(frame:{t.touch_frame_id}): {t.touch_type} - {t.players}")
+        else:
+            print(f"{t.start_timestamp}:{t.end_timestamp}(frame:{t.start_frame_id}:{t.end_frame_id}): {t.touch_type} - {t.players}")
     for f in frames:
         draw_frame(f.players, f.id, timestamp=None, save=True, show_labels=True, save_name_prefix="frame_result")
 

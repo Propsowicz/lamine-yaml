@@ -15,6 +15,7 @@ from enum import Enum
 class TouchType(str, Enum):
     POSSESSION = "possession"
     PASS = "pass"
+    UNCONFIRMED = "unconfirmed"
 
 
 @dataclass(frozen=True)
@@ -25,25 +26,96 @@ class TouchingPlayer:
 
 
 @dataclass(frozen=True)
-class BallTouchEvent:
-    frame_id: int
-    timestamp: object
+class BallPosition:
+    x: float
+    y: float
+    z: float
 
+
+@dataclass(frozen=True)
+class PlayerTouchSummary:
+    player_id: str
+    team: str
+
+    # Minimum distance observed during the event.
+    min_distance_m: float
+
+    # First and last frames where the player was within the radius.
+    first_frame_id: int
+    last_frame_id: int
+
+
+@dataclass(frozen=True)
+class BallTouchEvent:
+    touch_type: TouchType
+
+    # Event boundaries.
+    start_frame_id: int
+    start_timestamp: object
     end_frame_id: int
     end_timestamp: object
 
-    ball_x: float
-    ball_y: float
-    ball_z: float
+    # Relevant for PASS. None for POSSESSION.
+    touch_frame_id: int | None
+    touch_timestamp: object | None
 
-    # Players close to the ball when the event started.
-    players: tuple[TouchingPlayer, ...]
+    # Ball coordinates at event boundaries.
+    start_ball: BallPosition
+    end_ball: BallPosition
 
-    touch_type: TouchType
+    # Players involved, ordered by minimum distance.
+    players: tuple[PlayerTouchSummary, ...]
 
 from math import ceil, hypot
 from typing import Sequence
 
+def _has_sustained_possession(
+    start_index: int,
+    end_index: int,
+    min_possession_frames: int = 3,
+) -> bool:
+    return (
+        end_index - start_index + 1
+        >= min_possession_frames
+    )
+
+def _summarize_players(
+    frames: Sequence[Frame],
+    players_by_frame: Sequence[tuple[TouchingPlayer, ...]],
+    start_index: int,
+    end_index: int,
+) -> tuple[PlayerTouchSummary, ...]:
+
+    summaries: dict[str, dict] = {}
+
+    for index in range(start_index, end_index + 1):
+        for player in players_by_frame[index]:
+            existing = summaries.get(player.player_id)
+
+            if existing is None:
+                summaries[player.player_id] = {
+                    "player_id": player.player_id,
+                    "team": player.team,
+                    "min_distance_m": player.distance_m,
+                    "first_frame_id": frames[index].id,
+                    "last_frame_id": frames[index].id,
+                }
+                continue
+
+            existing["min_distance_m"] = min(
+                existing["min_distance_m"],
+                player.distance_m,
+            )
+
+            existing["last_frame_id"] = frames[index].id
+
+    return tuple(
+        PlayerTouchSummary(**summary)
+        for summary in sorted(
+            summaries.values(),
+            key=lambda item: item["min_distance_m"],
+        )
+    )
 
 def _get_player_distance(
     frame: Frame,
@@ -465,7 +537,6 @@ def detect_ball_touches(
     ]
 
     events: list[BallTouchEvent] = []
-
     index = 0
 
     while index < len(frames):
@@ -474,7 +545,7 @@ def detect_ball_touches(
             index += 1
             continue
 
-        # 1. Find the complete consecutive proximity sequence.
+        # 1. Find the complete proximity sequence.
         sequence_start = index
         sequence_end = index
 
@@ -484,14 +555,14 @@ def detect_ball_touches(
         ):
             sequence_end += 1
 
-        # 2. Find the frame of closest approach.
+        # 2. Find the closest frame and player.
         touch_index, closest_player = _find_closest_touch_frame(
             players_by_frame,
             sequence_start,
             sequence_end,
         )
 
-        # 3. Classify using the actual touch frame.
+        # 3. Check whether the ball moves away from that player.
         pass_end_index = _find_pass_end(
             frames=frames,
             positions=positions,
@@ -501,31 +572,86 @@ def detect_ball_touches(
             lookahead_frames=lookahead_frames,
         )
 
+        # 4. Choose event boundaries based on event type.
         if pass_end_index is not None:
             touch_type = TouchType.PASS
+
+            event_start = touch_index
             event_end = pass_end_index
-        else:
+
+            # Players present at the actual touch moment.
+            event_players = _summarize_players(
+                frames,
+                players_by_frame,
+                touch_index,
+                touch_index,
+            )
+
+            representative_frame = frames[touch_index]
+
+        elif _has_sustained_possession(
+            sequence_start,
+            sequence_end,
+            min_possession_frames=3,
+        ):
             touch_type = TouchType.POSSESSION
+
+            # Possession covers the entire proximity sequence.
+            event_start = sequence_start
             event_end = sequence_end
 
-        ball_position = positions[touch_index]
+            # All players involved throughout possession.
+            event_players = _summarize_players(
+                frames,
+                players_by_frame,
+                sequence_start,
+                sequence_end,
+            )
 
-        if ball_position is not None:
+            representative_frame = None
+        else:
+            touch_type = TouchType.UNCONFIRMED
+            event_start = sequence_start
+            event_end = sequence_end
+
+        # 5. Create the event.
+        start_ball = positions[event_start]
+        end_ball = positions[event_end]
+
+        if start_ball is not None and end_ball is not None:
             events.append(
                 BallTouchEvent(
-                    frame_id=frames[touch_index].id,
-                    timestamp=frames[touch_index].timestamp,
+                    touch_type=touch_type,
+
+                    start_frame_id=frames[event_start].id,
+                    start_timestamp=frames[event_start].timestamp,
+
                     end_frame_id=frames[event_end].id,
                     end_timestamp=frames[event_end].timestamp,
-                    ball_x=ball_position[0],
-                    ball_y=ball_position[1],
-                    ball_z=frames[touch_index].ball.z,
-                    players=players_by_frame[touch_index],
-                    touch_type=touch_type,
+
+                    touch_frame_id=(
+                        representative_frame.id
+                        if representative_frame else None
+                    ),
+                    touch_timestamp=(
+                        representative_frame.timestamp
+                        if representative_frame else None
+                    ),
+
+                    start_ball=BallPosition(
+                        *start_ball,
+                        frames[event_start].ball.z,
+                    ),
+                    end_ball=BallPosition(
+                        *end_ball,
+                        frames[event_end].ball.z,
+                    ),
+
+                    players=event_players,
                 )
             )
 
-        # 4. Skip the entire analyzed sequence.
+        # 6. Skip all frames belonging to this event.
         index = max(sequence_end, event_end) + 1
 
     return events
