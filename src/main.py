@@ -11,6 +11,7 @@ from data_prepare.data_sets_combiner import Combiner
 from models.player import Player
 from data_prepare.player_tracker_validator import validate_player_tracking
 from utils.csv_save import save_frames, read_frames, csv_exists
+from data_prepare.touch_ball_tracker import detect_ball_touches, TouchType
 
 ROOT_PATH = Path(__file__).resolve().parent.parent
 BASE_DIR = Path(__file__).resolve().parent
@@ -35,7 +36,7 @@ class PosessionCalc:
         print("load frames -- start")
         normalized_frames_from_atg: list[Frame] = normalize_atg_file(data_path=DATA_PATH, start_frame=self.start_frame, end_frame=self.end_frame)
         print("atg data loaded")
-        
+
         frames_from_detection_file_name = f"./frames_from_detection_{self.start_frame}_{self.end_frame}.csv"
         if csv_exists(frames_from_detection_file_name):
             frames_from_detection = read_frames(frames_from_detection_file_name)
@@ -69,6 +70,7 @@ class PosessionCalc:
                     merge_distance=2.0,
                     reappearance_distance=2.0,
                 )
+
             #TODO need to fix - merging players is broken
             combined_players: list[Player] = combiner.combine(
                     players=normalized_frames_from_atg[index].players,
@@ -91,7 +93,7 @@ class PosessionCalc:
 
     def _detect_players_position(self) -> list[DetectedFrame]:
         detection_config = YOLOConfig(
-            imgsz=1568,
+            imgsz=360,
             conf=0.1,
             iou=0.7,
             max_det=300
@@ -108,6 +110,13 @@ if __name__ == '__main__':
     # calc = PosessionCalc(start_frame=11400, end_frame=11405)
     calc = PosessionCalc(start_frame=11185, end_frame=11189)
     frames = calc.load_frames()
+
+    touches = detect_ball_touches(frames, radius_m=1.5)
+    for t in touches:
+        if t.touch_type == TouchType.PASS:
+            print(f"{t.touch_timestamp}(frame:{t.touch_frame_id}): {t.touch_type} - {t.players}")
+        else:
+            print(f"{t.start_timestamp}:{t.end_timestamp}(frame:{t.start_frame_id}:{t.end_frame_id}): {t.touch_type} - {t.players}")
     for f in frames:
         draw_frame(f.players, f.id, timestamp=None, save=True, show_labels=True, save_name_prefix="frame_result")
 

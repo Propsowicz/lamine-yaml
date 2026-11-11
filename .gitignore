@@ -49,3 +49,5 @@ htmlcov/
 *.xml
 *.mp4
 *.pt
+*.png
+*.jpg
