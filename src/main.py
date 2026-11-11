@@ -122,6 +122,6 @@ if __name__ == '__main__':
     # for f in frames:
     #     draw_frame(f.players, f.id, timestamp=None, save=True, show_labels=True, save_name_prefix="frame_result")
 
-    labels = create_frame_labels(18684, "Barcelona", "Atletic Club", touches)
+    labels = create_frame_labels(199319, "Barcelona", "Atletic Club", touches)
     save_frame_labels_to_csv(labels, "./result.csv")
    
