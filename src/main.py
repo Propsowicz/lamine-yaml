@@ -108,7 +108,7 @@ class PosessionCalc:
         
 if __name__ == '__main__':
     # calc = PosessionCalc(start_frame=11400, end_frame=11405)
-    calc = PosessionCalc(start_frame=11185, end_frame=11189)
+    calc = PosessionCalc(start_frame=11185, end_frame=11300)
     frames = calc.load_frames()
 
     touches = detect_ball_touches(frames, radius_m=1.5)
@@ -119,5 +119,6 @@ if __name__ == '__main__':
             print(f"{t.start_timestamp}:{t.end_timestamp}(frame:{t.start_frame_id}:{t.end_frame_id}): {t.touch_type} - {t.players}")
     for f in frames:
         draw_frame(f.players, f.id, timestamp=None, save=True, show_labels=True, save_name_prefix="frame_result")
+
 
    

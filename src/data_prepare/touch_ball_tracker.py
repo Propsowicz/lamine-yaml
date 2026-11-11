@@ -613,6 +613,14 @@ def detect_ball_touches(
             touch_type = TouchType.UNCONFIRMED
             event_start = sequence_start
             event_end = sequence_end
+            event_players = _summarize_players(
+                            frames,
+                            players_by_frame,
+                            sequence_start,
+                            sequence_end,
+                        )
+            representative_frame = None
+
 
         # 5. Create the event.
         start_ball = positions[event_start]
