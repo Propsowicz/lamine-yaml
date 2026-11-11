@@ -14,7 +14,7 @@ from utils.csv_save import save_frames, read_frames, csv_exists, save_frame_labe
 from data_prepare.touch_ball_tracker import detect_ball_touches, TouchType
 from data_analyze.touch_ball_events_analyzer import create_frame_labels
 
-
+from data_prepare.smart_tagging import load_smart_tagging
 ROOT_PATH = Path(__file__).resolve().parent.parent
 BASE_DIR = Path(__file__).resolve().parent
 DATA_PATH = str(ROOT_PATH / "data")
@@ -109,6 +109,11 @@ class PosessionCalc:
         return normalize_atg_file(data_path=DATA_PATH, start_frame=self.start_frame, end_frame=self.end_frame)
         
 if __name__ == '__main__':
+    START_FRAME=11185
+    END_FRAME=18684
+    st_events = load_smart_tagging(start_frame=START_FRAME, end_frame=END_FRAME)
+
+    
     # calc = PosessionCalc(start_frame=11400, end_frame=11405)
     calc = PosessionCalc(start_frame=11185, end_frame=18684)
     frames = calc.load_frames()
