@@ -14,7 +14,7 @@ from utils.csv_save import save_frames, read_frames, csv_exists, save_frame_labe
 from data_prepare.touch_ball_tracker import detect_ball_touches, TouchType
 from data_analyze.touch_ball_events_analyzer import create_frame_labels
 
-from data_prepare.smart_tagging import load_smart_tagging
+from data_prepare.smart_tagging import SmartTaggingCode, load_smart_tagging
 ROOT_PATH = Path(__file__).resolve().parent.parent
 BASE_DIR = Path(__file__).resolve().parent
 DATA_PATH = str(ROOT_PATH / "data")
@@ -111,7 +111,11 @@ class PosessionCalc:
 if __name__ == '__main__':
     START_FRAME=11185
     END_FRAME=18684
-    st_events = load_smart_tagging(start_frame=START_FRAME, end_frame=END_FRAME)
+    st_events = load_smart_tagging(
+        start_frame=START_FRAME,
+        end_frame=END_FRAME,
+        code=SmartTaggingCode.SET_PIECES,
+    )
 
     
     # calc = PosessionCalc(start_frame=11400, end_frame=11405)

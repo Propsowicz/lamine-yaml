@@ -2,11 +2,29 @@
 
 import os
 from collections.abc import Iterable
+from enum import Enum
 from pathlib import Path
 from typing import TypedDict
 import xml.etree.ElementTree as ET
 
 from .games import GAME, GAMES, require
+
+
+class SmartTaggingCode(str, Enum):
+    PLAYERS_IN_THE_BOX = "PLAYERS IN THE BOX"
+    BALL_IN_FINAL_THIRD = "BALL IN FINAL THIRD"
+    BALL_IN_THE_BOX = "BALL IN THE BOX"
+    PROGRESSION = "PROGRESSION"
+    DEFENDING_IN_MIDDLE_THIRD = "DEFENDING IN MIDDLE THIRD"
+    SET_PIECES = "SET PIECES"
+    CREATING_CHANCES = "CREATING CHANCES"
+    DEFENDING_IN_DEFENSIVE_THIRD = "DEFENDING IN DEFENSIVE THIRD"
+    LONG_BALL = "LONG BALL"
+    ATTACKING_TRANSITION = "ATTACKING TRANSITION"
+    DEFENSIVE_TRANSITION = "DEFENSIVE TRANSITION"
+    BUILD_UP = "BUILD UP"
+    DEFENDING_IN_ATTACKING_THIRD = "DEFENDING IN ATTACKING THIRD"
+    GOALS = "GOALS"
 
 
 class SmartTaggingEvent(TypedDict):
@@ -34,6 +52,7 @@ def load_smart_tagging(
     start_frame: int | None = None,
     end_frame: int | None = None,
     event_types: str | Iterable[str] | None = None,
+    code: SmartTaggingCode | None = None,
 ) -> list[SmartTaggingEvent]:
     """Read events in start-frame order with half-open tactical video intervals.
 
@@ -43,6 +62,7 @@ def load_smart_tagging(
     retain their original boundaries.
     Event types match the XML's Type tag case-insensitively. Pass one type
     or an iterable of types to match any of them.
+    The optional code matches the XML's code element exactly.
     """
     if start_frame is not None and end_frame is not None and start_frame > end_frame:
         raise ValueError("start_frame must be less than or equal to end_frame")
@@ -58,6 +78,9 @@ def load_smart_tagging(
 
     events: list[SmartTaggingEvent] = []
     for instance in ET.parse(xml_path).iter("instance"):
+        event_code = instance.findtext("code")
+        if code is not None and event_code != code.value:
+            continue
         start_s = float(instance.findtext("start", ""))
         end_s = float(instance.findtext("end", ""))
         event_start = round(start_s * fps)
@@ -76,7 +99,7 @@ def load_smart_tagging(
         ):
             continue
         events.append({
-            "code": instance.findtext("code"),
+            "code": event_code,
             "start_s": start_s,
             "end_s": end_s,
             "start_time": _format_video_time(start_s),
