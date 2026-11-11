@@ -10,8 +10,10 @@ from utils.chart_helper import plot_coordinates, draw_frame
 from data_prepare.data_sets_combiner import Combiner
 from models.player import Player
 from data_prepare.player_tracker_validator import validate_player_tracking
-from utils.csv_save import save_frames, read_frames, csv_exists
+from utils.csv_save import save_frames, read_frames, csv_exists, save_frame_labels_to_csv
 from data_prepare.touch_ball_tracker import detect_ball_touches, TouchType
+from data_analyze.touch_ball_events_analyzer import create_frame_labels
+
 
 ROOT_PATH = Path(__file__).resolve().parent.parent
 BASE_DIR = Path(__file__).resolve().parent
@@ -108,7 +110,7 @@ class PosessionCalc:
         
 if __name__ == '__main__':
     # calc = PosessionCalc(start_frame=11400, end_frame=11405)
-    calc = PosessionCalc(start_frame=11185, end_frame=11300)
+    calc = PosessionCalc(start_frame=11185, end_frame=18684)
     frames = calc.load_frames()
 
     touches = detect_ball_touches(frames, radius_m=1.5)
@@ -117,8 +119,9 @@ if __name__ == '__main__':
             print(f"{t.touch_timestamp}(frame:{t.touch_frame_id}): {t.touch_type} - {t.players}")
         else:
             print(f"{t.start_timestamp}:{t.end_timestamp}(frame:{t.start_frame_id}:{t.end_frame_id}): {t.touch_type} - {t.players}")
-    for f in frames:
-        draw_frame(f.players, f.id, timestamp=None, save=True, show_labels=True, save_name_prefix="frame_result")
+    # for f in frames:
+    #     draw_frame(f.players, f.id, timestamp=None, save=True, show_labels=True, save_name_prefix="frame_result")
 
-
+    labels = create_frame_labels(18684, "Barcelona", "Atletic Club", touches)
+    save_frame_labels_to_csv(labels, "./result.csv")
    
