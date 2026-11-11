@@ -1,3 +1,7 @@
+from dotenv import load_dotenv
+
+load_dotenv() 
+import os
 from pathlib import Path
 from data_prepare.detector import PlayersDetector, YOLOConfig
 from data_prepare.atg_normalizer import normalize_atg_file
@@ -13,7 +17,8 @@ ROOT_PATH = Path(__file__).resolve().parent.parent
 BASE_DIR = Path(__file__).resolve().parent
 DATA_PATH = str(ROOT_PATH / "data")
 HOMOGRAPHY_PATH = str(BASE_DIR / ".." / "data" / "tactical" / "BAR-ATH_tactical_homography.csv")
-VIDEO_PATH = str(BASE_DIR / ".." / "data" / "tactical" / "BAR-ATH_tactical-001.mp4")
+TACTICAL_FILE_NAME = os.environ.get("TACTICAL_FILE_NAME") or "BAR-ATH_tactical-001.mp4"
+VIDEO_PATH = str(BASE_DIR / ".." / "data" / "tactical" / TACTICAL_FILE_NAME)
 
 
 class PosessionCalc:
@@ -103,7 +108,7 @@ class PosessionCalc:
         
 if __name__ == '__main__':
     # calc = PosessionCalc(start_frame=11400, end_frame=11405)
-    calc = PosessionCalc(start_frame=11184, end_frame=11885)
+    calc = PosessionCalc(start_frame=11185, end_frame=11189)
     frames = calc.load_frames()
 
     touches = detect_ball_touches(frames, radius_m=1.5)
