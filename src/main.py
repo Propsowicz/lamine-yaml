@@ -4,7 +4,7 @@ from data_prepare.ball_gaps_interpolation import interpolate_short_gaps
 import os
 from pathlib import Path
 from data_prepare.detector import PlayersDetector, YOLOConfig
-from data_prepare.atg_normalizer import normalize_atg_file
+from data_prepare.atd_normalizer import normalize_atd_file
 from models.frame import Frame, DetectedFrame
 from utils.chart_helper import plot_coordinates, draw_frame
 from data_prepare.data_sets_combiner import Combiner
@@ -36,16 +36,19 @@ class PosessionCalc:
 
 
     def load_frames(self) -> list[Frame]:
-        self.logger.info("load frames -- start")
-        normalized_frames_from_atg: list[Frame] = normalize_atg_file(data_path=DATA_PATH, start_frame=self.start_frame, end_frame=self.end_frame)
-        interpolate_short_gaps(normalized_frames_from_atg)
+        self.logger.info("Load frames started.")
+        normalized_frames_from_atd: list[Frame] = normalize_atd_file(data_path=DATA_PATH, start_frame=self.start_frame, end_frame=self.end_frame)
+        interpolate_short_gaps(normalized_frames_from_atd)
 
-        print("atg data loaded")
+        self.logger.info("Atd data loaded.")
 
         frames_from_detection_file_name = f"./frames_from_detection_{self.start_frame}_{self.end_frame}.csv"
         if csv_exists(frames_from_detection_file_name):
+            self.logger.info("Loaded players detection results from pre-calculated file.")
+
             frames_from_detection = read_frames(frames_from_detection_file_name)
         else:
+            self.logger.info("Started players detection.")
             detection_config = YOLOConfig(
                         imgsz=1568,
                         conf=0.1,
@@ -56,19 +59,20 @@ class PosessionCalc:
             detector = PlayersDetector(VIDEO_PATH, HOMOGRAPHY_PATH, detection_config)
             frames_from_detection = detector.detect(self.start_frame, self.end_frame)
             save_frames(frames_from_detection, frames_from_detection_file_name)
-        print("pitch data detected")
+            self.logger.info("Players detection finished.")
+        
 
         combiner = Combiner(
                     max_match_distance=3.0,
                     team_confidence_threshold=0.90,
                 )
         result: list[Frame] = []
-        for index, _ in enumerate(normalized_frames_from_atg):
-            current_frame: Frame = normalized_frames_from_atg[index]
-            previous_frame: Frame = normalized_frames_from_atg[index-1]
+        for index, _ in enumerate(normalized_frames_from_atd):
+            current_frame: Frame = normalized_frames_from_atd[index]
+            previous_frame: Frame = normalized_frames_from_atd[index-1]
 
             if index > 0:
-                normalized_frames_from_atg[index].players = validate_player_tracking(
+                normalized_frames_from_atd[index].players = validate_player_tracking(
                     current_players=current_frame.players,
                     previous_players=previous_frame.players,
                     max_tracking_distance=3.0,
@@ -77,14 +81,14 @@ class PosessionCalc:
                 )
 
             combined_players: list[Player] = combiner.combine(
-                    players=normalized_frames_from_atg[index].players,
+                    players=normalized_frames_from_atd[index].players,
                     detected_players=frames_from_detection[index].players,
                     ball=current_frame.ball,
                     players_by_team=current_frame.players_by_team,
                 )
             for p in combined_players:
                 p.calculate_distance_to_ball(current_frame.ball)
-
+            
             # TODO distance to ball needs to recalculated (remove it from init)
             result.append(Frame(
                 current_frame.id,
@@ -93,6 +97,7 @@ class PosessionCalc:
                 current_frame.ball,
                 current_frame.players_by_team
             ))
+        self.logger.info("Atd data combined with players detection and players tracking.")
         return result
         
 if __name__ == '__main__':
