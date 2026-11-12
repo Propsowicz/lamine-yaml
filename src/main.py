@@ -160,7 +160,7 @@ if __name__ == '__main__':
         "Barcelona",
         "Atletic Club",
         touches,
-        dead_ball_ranges=dead_ball_ranges,
+        dead_ball_ranges,
         ball_out_events
     )
     save_frame_labels_to_csv(labels, "./result.csv")

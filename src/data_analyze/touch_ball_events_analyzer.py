@@ -122,6 +122,14 @@ def create_frame_labels(
 
         i = chain_end + 1
 
+    # Apply ball-out labels last, overriding any previous labels.
+    for event in ball_out_events:
+        fill_range(
+            event.start_frame_id,
+            event.end_frame_id,
+            "D",
+        )
+
     # Apply dead-ball labels.
     for start_frame, end_frame in dead_ball_ranges:
         fill_range(start_frame, end_frame, "D")
@@ -153,12 +161,5 @@ def create_frame_labels(
         if restart_label is not None:
             labels[restart_frame] = restart_label
 
-    # Apply ball-out labels last, overriding any previous labels.
-    for event in ball_out_events:
-        fill_range(
-            event.start_frame_id,
-            event.end_frame_id,
-            "D",
-        )
-
+    
     return labels
