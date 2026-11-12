@@ -2,12 +2,14 @@
 
 import os
 from collections.abc import Iterable
+from dataclasses import dataclass
+from datetime import timedelta
 from enum import Enum
 from pathlib import Path
-from typing import TypedDict
 import xml.etree.ElementTree as ET
 
 from .games import GAME, GAMES, require
+from utils.time_format import format_elapsed_time
 
 
 class SmartTaggingCode(str, Enum):
@@ -27,21 +29,22 @@ class SmartTaggingCode(str, Enum):
     GOALS = "GOALS"
 
 
-class SmartTaggingEvent(TypedDict):
+@dataclass
+class SmartTaggingEvent:
     code: str | None
-    start_s: float
-    end_s: float
-    start_time: str
-    end_time: str
+    start_timestamp: timedelta
+    end_timestamp: timedelta
     start_frame: int
     end_frame: int
     tags: dict[str | None, str | None]
 
+    @property
+    def start_time(self) -> str:
+        return format_elapsed_time(self.start_timestamp)
 
-def _format_video_time(seconds: float) -> str:
-    hours, remainder = divmod(int(seconds), 3600)
-    minutes, seconds_in_minute = divmod(remainder, 60)
-    return f"{hours:02d}:{minutes:02d}:{seconds_in_minute:02d}"
+    @property
+    def end_time(self) -> str:
+        return format_elapsed_time(self.end_timestamp)
 
 
 def load_smart_tagging(
@@ -98,15 +101,13 @@ def load_smart_tagging(
             event_type is None or event_type.strip().casefold() not in selected_types
         ):
             continue
-        events.append({
-            "code": event_code,
-            "start_s": start_s,
-            "end_s": end_s,
-            "start_time": _format_video_time(start_s),
-            "end_time": _format_video_time(end_s),
-            "start_frame": event_start,
-            "end_frame": event_end,
-            "tags": tags,
-        })
-    events.sort(key=lambda event: event["start_frame"])
+        events.append(SmartTaggingEvent(
+            code=event_code,
+            start_timestamp=timedelta(seconds=start_s),
+            end_timestamp=timedelta(seconds=end_s),
+            start_frame=event_start,
+            end_frame=event_end,
+            tags=tags,
+        ))
+    events.sort(key=lambda event: event.start_frame)
     return events

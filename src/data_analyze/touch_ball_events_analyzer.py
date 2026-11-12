@@ -26,13 +26,7 @@ def create_frame_labels(
         key=lambda event: event.start_frame_id,
     )
 
-    def get_team_label(event: BallTouchEvent) -> FrameLabel | None:
-        if event.touch_type not in (
-            TouchType.POSSESSION,
-            TouchType.PASS,
-        ):
-            return None
-
+    def get_player_team_label(event: BallTouchEvent) -> FrameLabel | None:
         if not event.players:
             return None
 
@@ -48,6 +42,15 @@ def create_frame_labels(
             return "A"
 
         return None
+
+    def get_team_label(event: BallTouchEvent) -> FrameLabel | None:
+        if event.touch_type not in (
+            TouchType.POSSESSION,
+            TouchType.PASS,
+        ):
+            return None
+
+        return get_player_team_label(event)
 
     def fill_range(
         start_frame: int,
@@ -122,6 +125,33 @@ def create_frame_labels(
     # Apply dead-ball labels.
     for start_frame, end_frame in dead_ball_ranges:
         fill_range(start_frame, end_frame, "D")
+
+    # A restart touch can be UNCONFIRMED, but its nearest player still
+    # identifies the team that took the first touch after a dead-ball range.
+    restart_frames = {end_frame + 1 for _, end_frame in dead_ball_ranges}
+    for restart_frame in restart_frames:
+        if not 0 <= restart_frame < number_of_frames:
+            continue
+
+        restart_event = next(
+            (
+                event
+                for event in ordered_events
+                if event.touch_type == TouchType.UNCONFIRMED
+                and (
+                    event.touch_frame_id
+                    if event.touch_frame_id is not None
+                    else event.start_frame_id
+                ) == restart_frame
+            ),
+            None,
+        )
+        if restart_event is None:
+            continue
+
+        restart_label = get_player_team_label(restart_event)
+        if restart_label is not None:
+            labels[restart_frame] = restart_label
 
     # Apply ball-out labels last, overriding any previous labels.
     for event in ball_out_events:
