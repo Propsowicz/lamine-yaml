@@ -14,7 +14,8 @@ from utils.csv_save import save_frames, read_frames, csv_exists, save_frame_labe
 from data_prepare.touch_ball_tracker import detect_ball_touches, TouchType
 from data_analyze.touch_ball_events_analyzer import create_frame_labels
 import logging
-
+from data_analyze.ball_out_analyzer import detect_ball_out_events
+from utils.constants import PITCH_LENGTH, PITCH_WIDTH
 from data_prepare.smart_tagging import SmartTaggingCode, load_smart_tagging
 
 from utils.setup_logging import setup_logging
@@ -108,12 +109,13 @@ if __name__ == '__main__':
         end_frame=END_FRAME,
         code=SmartTaggingCode.SET_PIECES,
     )
-
     
     calc = PosessionCalc(start_frame=START_FRAME, end_frame=END_FRAME)
     frames = calc.load_frames()
 
+
     touches = detect_ball_touches(frames, radius_m=1.5)
+    ball_out_events = detect_ball_out_events(frames, PITCH_LENGTH, PITCH_WIDTH)
 
     dead_ball_ranges: list[tuple[int, int]] = []
     if frames:
@@ -158,7 +160,8 @@ if __name__ == '__main__':
         "Barcelona",
         "Atletic Club",
         touches,
-        dead_ball_ranges=dead_ball_ranges,
+        dead_ball_ranges,
+        ball_out_events
     )
     save_frame_labels_to_csv(labels, "./result.csv")
    

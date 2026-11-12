@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from typing import Literal
 from data_prepare.touch_ball_tracker import BallTouchEvent, TouchType
-
+from data_analyze.ball_out_analyzer import BallOutEvent
 FrameLabel = Literal["X", "D", "H", "A"]
 
 
@@ -11,6 +11,7 @@ def create_frame_labels(
     away_team: str,
     events: Sequence[BallTouchEvent],
     dead_ball_ranges: Sequence[tuple[int, int]] = (),
+    ball_out_events: Sequence[BallOutEvent] = (),
 ) -> list[FrameLabel]:
     if number_of_frames < 0:
         raise ValueError("number_of_frames cannot be negative")
@@ -121,7 +122,15 @@ def create_frame_labels(
 
         i = chain_end + 1
 
-    # Apply dead-ball labels independently.
+    # Apply ball-out labels last, overriding any previous labels.
+    for event in ball_out_events:
+        fill_range(
+            event.start_frame_id,
+            event.end_frame_id,
+            "D",
+        )
+
+    # Apply dead-ball labels.
     for start_frame, end_frame in dead_ball_ranges:
         fill_range(start_frame, end_frame, "D")
 
@@ -152,4 +161,5 @@ def create_frame_labels(
         if restart_label is not None:
             labels[restart_frame] = restart_label
 
+    
     return labels
