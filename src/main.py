@@ -12,6 +12,7 @@ from models.player import Player
 from data_prepare.player_tracker_validator import validate_player_tracking
 from utils.csv_save import save_frames, read_frames, csv_exists, save_frame_labels_to_csv
 from data_prepare.touch_ball_tracker import detect_ball_touches, TouchType
+from data_analyze.dead_ball_analyzer import detect_dead_ball_ranges
 from data_analyze.touch_ball_events_analyzer import create_frame_labels
 import logging
 from data_analyze.ball_out_analyzer import detect_ball_out_events
@@ -116,36 +117,7 @@ if __name__ == '__main__':
 
     touches = detect_ball_touches(frames, radius_m=1.5)
     ball_out_events = detect_ball_out_events(frames, PITCH_LENGTH, PITCH_WIDTH)
-
-    dead_ball_ranges: list[tuple[int, int]] = []
-    if frames:
-        analyzed_start_frame = min(frame.id for frame in frames)
-        analyzed_end_frame = max(frame.id for frame in frames)
-        touch_frames = [
-            touch.touch_frame_id
-            if touch.touch_frame_id is not None
-            else touch.start_frame_id
-            for touch in touches
-        ]
-
-        for event in st_events:
-            next_touch_frame = min(
-                (
-                    frame_id
-                    for frame_id in touch_frames
-                    if frame_id > event.start_frame
-                ),
-                default=None,
-            )
-            dead_start = max(event.start_frame, analyzed_start_frame)
-            dead_end = min(
-                next_touch_frame - 1
-                if next_touch_frame is not None
-                else analyzed_end_frame,
-                analyzed_end_frame,
-            )
-            if dead_start <= dead_end:
-                dead_ball_ranges.append((dead_start, dead_end))
+    dead_ball_ranges = detect_dead_ball_ranges(frames, st_events, touches)
 
     for t in touches:
         if t.touch_type == TouchType.PASS:
