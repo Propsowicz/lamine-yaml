@@ -1,5 +1,7 @@
 from dotenv import load_dotenv
 
+from data_prepare.ball_gaps_interpolation import interpolate_short_gaps
+
 load_dotenv() 
 import os
 from pathlib import Path
@@ -37,6 +39,8 @@ class PosessionCalc:
     def load_frames(self) -> list[Frame]:
         print("load frames -- start")
         normalized_frames_from_atg: list[Frame] = normalize_atg_file(data_path=DATA_PATH, start_frame=self.start_frame, end_frame=self.end_frame)
+        interpolate_short_gaps(normalized_frames_from_atg)
+
         print("atg data loaded")
 
         frames_from_detection_file_name = f"./frames_from_detection_{self.start_frame}_{self.end_frame}.csv"
