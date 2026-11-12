@@ -1,8 +1,6 @@
 from dotenv import load_dotenv
 
 from data_prepare.ball_gaps_interpolation import interpolate_short_gaps
-
-load_dotenv() 
 import os
 from pathlib import Path
 from data_prepare.detector import PlayersDetector, YOLOConfig
@@ -15,8 +13,12 @@ from data_prepare.player_tracker_validator import validate_player_tracking
 from utils.csv_save import save_frames, read_frames, csv_exists, save_frame_labels_to_csv
 from data_prepare.touch_ball_tracker import detect_ball_touches, TouchType
 from data_analyze.touch_ball_events_analyzer import create_frame_labels
+import logging
 
 from data_prepare.smart_tagging import SmartTaggingCode, load_smart_tagging
+
+from utils.setup_logging import setup_logging
+
 ROOT_PATH = Path(__file__).resolve().parent.parent
 BASE_DIR = Path(__file__).resolve().parent
 DATA_PATH = str(ROOT_PATH / "data")
@@ -29,15 +31,12 @@ class PosessionCalc:
     def __init__(self, start_frame: int, end_frame: int):
         self.start_frame = start_frame
         self.end_frame = end_frame        
+        setup_logging()
+        self.logger = logging.getLogger(__name__)
 
-    def calculate(self):
-        print("start calculations")
-        frames = self._normalize_atg_data()
-        print("frames loaded")
-        plot_coordinates([f.ball.x for f in frames], [f.ball.y for f in frames], [f.id for f in frames])
 
     def load_frames(self) -> list[Frame]:
-        print("load frames -- start")
+        self.logger.info("load frames -- start")
         normalized_frames_from_atg: list[Frame] = normalize_atg_file(data_path=DATA_PATH, start_frame=self.start_frame, end_frame=self.end_frame)
         interpolate_short_gaps(normalized_frames_from_atg)
 
@@ -77,7 +76,6 @@ class PosessionCalc:
                     reappearance_distance=2.0,
                 )
 
-            #TODO need to fix - merging players is broken
             combined_players: list[Player] = combiner.combine(
                     players=normalized_frames_from_atg[index].players,
                     detected_players=frames_from_detection[index].players,
@@ -96,21 +94,6 @@ class PosessionCalc:
                 current_frame.players_by_team
             ))
         return result
-
-    def _detect_players_position(self) -> list[DetectedFrame]:
-        detection_config = YOLOConfig(
-            imgsz=360,
-            conf=0.1,
-            iou=0.7,
-            max_det=300
-        )
-
-        detector = PlayersDetector(VIDEO_PATH, HOMOGRAPHY_PATH, detection_config)
-        frames = detector.detect(self.start_frame, self.end_frame)
-        return frames
-
-    def _normalize_atg_data(self) -> list[Frame]:
-        return normalize_atg_file(data_path=DATA_PATH, start_frame=self.start_frame, end_frame=self.end_frame)
         
 if __name__ == '__main__':
     START_FRAME=11185
@@ -122,8 +105,7 @@ if __name__ == '__main__':
     )
 
     
-    # calc = PosessionCalc(start_frame=11400, end_frame=11405)
-    calc = PosessionCalc(start_frame=11185, end_frame=18684)
+    calc = PosessionCalc(start_frame=START_FRAME, end_frame=END_FRAME)
     frames = calc.load_frames()
 
     touches = detect_ball_touches(frames, radius_m=1.5)

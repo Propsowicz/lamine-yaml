@@ -69,8 +69,6 @@ class PlayersDetector:
             previous_players: list[DetectedPlayer] | None = None
 
             for frame_index in range(start_frame, end_frame):
-                print(f"Processing frame {frame_index}...")
-
                 success, frame = cap.read()
                 if not success:
                     print(f"Cannot read data for frame: {frame_index}")
