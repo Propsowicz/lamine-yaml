@@ -14,25 +14,11 @@ def is_ball_visible(ball) -> bool:
     
     return True
 
-
-def timestamp_to_frame(minutes, seconds, fps=25) -> int:
-    return int((minutes * 60 + seconds) * fps)
-
-
-def find_gaps(frames, exclude_halftime=False) -> list[dict]:
+def find_gaps(frames) -> list[dict]:
     gaps = []
     start = None
-    
-    halftime_start = timestamp_to_frame(59, 8)
-    halftime_end = timestamp_to_frame(75, 49)
 
     for i, frame in enumerate(frames):
-        if exclude_halftime and halftime_start <= frame.id <= halftime_end:
-            if start is not None:
-                gaps.append(_make_gap(frames, start, i - 1))
-                start = None
-            continue
-        
         visible = is_ball_visible(frame.ball)
 
         if not visible and start is None:
@@ -74,8 +60,8 @@ def _valid(v) -> bool:
     return v is not None and not math.isnan(v)
 
 
-def interpolate_short_gaps(frames, exclude_halftime=False) -> int:
-    gaps = find_gaps(frames, exclude_halftime=exclude_halftime)
+def interpolate_short_gaps(frames) -> int:
+    gaps = find_gaps(frames)
     
     filled = 0
 
