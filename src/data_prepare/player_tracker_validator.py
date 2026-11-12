@@ -69,13 +69,6 @@ def validate_player_tracking(
     if len(current_by_id) != len(current_players):
         raise ValueError("Duplicate IDs in current frame.")
 
-    # if previous_by_id.keys() != current_by_id.keys():
-    #     print(previous_by_id.keys())
-    #     print(current_by_id.keys())
-    #     raise ValueError(
-    #         "Previous and current frames must contain the same IDs."
-    #     )
-
     current_indices = {
         player.player_id: index
         for index, player in enumerate(current_players)
@@ -199,15 +192,6 @@ def validate_player_tracking(
         matched_previous_ids.add(previous_id)
         matched_detection_ids.add(detected_id)
 
-        if previous_id != detected_id:
-            print(
-                f"[ID CORRECTED] "
-                f"Detected ID {detected_id} -> "
-                f"Original ID {previous_id} "
-                f"({previous_player.team}, "
-                f"distance={distance:.2f})"
-            )
-
     # --------------------------------------------------
     # STEP 3: Collect existing virtual players.
     #
@@ -285,12 +269,6 @@ def validate_player_tracking(
             closest_anchor.player_id,
         )
 
-        print(
-            f"[PLAYER MERGED] "
-            f"Missing ID {missing_id} -> "
-            f"Anchor ID {closest_anchor.player_id} "
-            f"(distance={distance:.2f})"
-        )
 
     # --------------------------------------------------
     # STEP 5: Find detections not used by global matching.
@@ -383,12 +361,6 @@ def validate_player_tracking(
         matched_targets.add(target_id)
         matched_virtual_detections.add(detected_id)
 
-        print(
-            f"[VIRTUAL PLAYER RECOVERED] "
-            f"Detected ID {detected_id} -> "
-            f"Original ID {target_id} "
-            f"(distance={distance:.2f})"
-        )
 
     # --------------------------------------------------
     # STEP 7: Preserve unmatched virtual players.

@@ -102,7 +102,7 @@ from models.ball import Ball
 from models.player import Player
 from models.frame import Frame
 
-def normalize_atg_file(data_path: str, start_frame: int = 1, end_frame: int = 199319) -> list[Frame]:
+def normalize_atd_file(data_path: str, start_frame: int = 1, end_frame: int = 199319) -> list[Frame]:
     dataset = load(data_dir=data_path)
     players_by_team = {
             team.name: [player.player_id for player in team.players]
