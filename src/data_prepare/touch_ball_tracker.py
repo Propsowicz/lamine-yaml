@@ -3,8 +3,10 @@ from typing import Sequence
 from models.player import Player
 from models.frame import Frame
 from models.ball import Ball
+from utils.time_format import format_elapsed_time
 from math import ceil, hypot
 from typing import Sequence
+from datetime import timedelta
 
 Point = tuple[float, float]
 
@@ -51,13 +53,13 @@ class BallTouchEvent:
 
     # Event boundaries.
     start_frame_id: int
-    start_timestamp: object
+    start_timestamp: timedelta
     end_frame_id: int
-    end_timestamp: object
+    end_timestamp: timedelta
 
     # Relevant for PASS. None for POSSESSION.
     touch_frame_id: int | None
-    touch_timestamp: object | None
+    touch_timestamp: timedelta | None
 
     # Ball coordinates at event boundaries.
     start_ball: BallPosition
@@ -65,6 +67,16 @@ class BallTouchEvent:
 
     # Players involved, ordered by minimum distance.
     players: tuple[PlayerTouchSummary, ...]
+
+    @property
+    def start_time(self) -> str:
+        """Start time as elapsed video time in HH:MM:SS format."""
+        return format_elapsed_time(self.start_timestamp)
+
+    @property
+    def end_time(self) -> str:
+        """End time as elapsed video time in HH:MM:SS format."""
+        return format_elapsed_time(self.end_timestamp)
 
 from math import ceil, hypot
 from typing import Sequence

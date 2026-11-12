@@ -114,6 +114,37 @@ if __name__ == '__main__':
     frames = calc.load_frames()
 
     touches = detect_ball_touches(frames, radius_m=1.5)
+
+    dead_ball_ranges: list[tuple[int, int]] = []
+    if frames:
+        analyzed_start_frame = min(frame.id for frame in frames)
+        analyzed_end_frame = max(frame.id for frame in frames)
+        touch_frames = [
+            touch.touch_frame_id
+            if touch.touch_frame_id is not None
+            else touch.start_frame_id
+            for touch in touches
+        ]
+
+        for event in st_events:
+            next_touch_frame = min(
+                (
+                    frame_id
+                    for frame_id in touch_frames
+                    if frame_id > event.start_frame
+                ),
+                default=None,
+            )
+            dead_start = max(event.start_frame, analyzed_start_frame)
+            dead_end = min(
+                next_touch_frame - 1
+                if next_touch_frame is not None
+                else analyzed_end_frame,
+                analyzed_end_frame,
+            )
+            if dead_start <= dead_end:
+                dead_ball_ranges.append((dead_start, dead_end))
+
     for t in touches:
         if t.touch_type == TouchType.PASS:
             print(f"{t.touch_timestamp}(frame:{t.touch_frame_id}): {t.touch_type} - {t.players}")
@@ -122,6 +153,12 @@ if __name__ == '__main__':
     # for f in frames:
     #     draw_frame(f.players, f.id, timestamp=None, save=True, show_labels=True, save_name_prefix="frame_result")
 
-    labels = create_frame_labels(199319, "Barcelona", "Atletic Club", touches)
+    labels = create_frame_labels(
+        199319,
+        "Barcelona",
+        "Atletic Club",
+        touches,
+        dead_ball_ranges=dead_ball_ranges,
+    )
     save_frame_labels_to_csv(labels, "./result.csv")
    
