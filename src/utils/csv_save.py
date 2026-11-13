@@ -1,6 +1,7 @@
 import csv
 from models.player import DetectedPlayer
 from models.frame import DetectedFrame 
+from data_analyze.touch_ball_events_analyzer import FrameLabel
 from utils.constants import PITCH_WIDTH, PITCH_LENGTH
 from pathlib import Path
 
@@ -56,3 +57,21 @@ def read_frames(file_path: str) -> list[DetectedFrame]:
 
 def csv_exists(file_path: str) -> bool:
     return Path(file_path).is_file()
+
+from collections.abc import Sequence
+from pathlib import Path
+
+
+def save_frame_labels_to_csv(
+    labels: Sequence[FrameLabel],
+    output_path: str | Path,
+) -> None:
+    with open(output_path, mode="w", newline="", encoding="utf-8") as file:
+        writer = csv.writer(file)
+
+        writer.writerow(["frame", "label"])
+
+        writer.writerows(
+            (frame_id, label)
+            for frame_id, label in enumerate(labels)
+        )

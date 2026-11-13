@@ -2,14 +2,21 @@
 import os
 import sys
 import math
+import xml.etree.ElementTree as ET
+
+from models.ball import Ball
+from models.player import Player
+from models.frame import Frame
+from data_prepare.games import require
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
-from games import GAME, GAMES, DEFAULT_SOURCE, require, source_frames  # noqa: E402
 
 FIELD_SEP = ":"
 
+GAME = "BAR-ATH"
+DEFAULT_SOURCE = "tactical"
 
 def atd_paths(game=GAME, data_dir=None, source=DEFAULT_SOURCE):
     """(meta_data, raw_data) paths, or a readable error naming what is missing."""
@@ -42,7 +49,6 @@ def video_frame_of(frame_id):
 def frame_id_of(video_frame):
     """ATD frame_id of a video frame. The inverse of video_frame_of."""
     return int(video_frame) + 1
-
 
 def check_alignment_raw(game=GAME, data_dir=None, source=DEFAULT_SOURCE):
     """The same check as check_alignment, straight off the raw file. No kloppy, no full load.
@@ -95,44 +101,31 @@ def check_alignment(dataset, game=GAME, source=DEFAULT_SOURCE):
     }
 
 
+def load_atd_metadata(game=GAME, data_dir=None, source=DEFAULT_SOURCE):
+    meta_path = require(["atd_meta"], game, data_dir, source)[0]
+    root = ET.parse(meta_path).getroot()
 
-
-import csv
-from pathlib import Path
-
-from utils import save_frames
-from models import Ball, Player, Frame
-
-if __name__ == '__main__':
-    dataset = load()
-    print(dataset.metadata)
-
-    print("....")
-    print(dataset.metadata.teams)
-
-    start_frame = 11185
-    # start_frame = 1000
-    # start_frame = 11423
-    # trial_end = 11425
-    trial_end = 18684
-
-    players_by_team = {
-        team.name: [player.player_id for player in team.players]
-        for team in dataset.metadata.teams
+    score = root.find('.//Score')
+    names = {t.get('id'): t.findtext('Name') for t in root.findall('.//Teams/Team')}
+    teams = {
+        'home': names[score.get('idLocalTeam')],
+        'away': names[score.get('idVisitingTeam')],
     }
+    
+    return {
+        'teams': teams,
+    }
+
+def normalize_atd_file(data_path: str, start_frame: int = 1, end_frame: int = 199319) -> list[Frame]:
+    dataset = load(data_dir=data_path)
+    players_by_team = {
+            team.name: [player.player_id for player in team.players]
+            for team in dataset.metadata.teams
+        }
     frames: list[Frame] = []
 
-    for frame in dataset.frames[start_frame:trial_end]:
-        print(f"Frame ID: {frame.frame_id}")
-        if frame.frame_id == 11185:
-            print(frame.players_data)
-            # print(type(dataset))
-            # print(dir(dataset))
-
-
-        # print(f"Timestamp: {frame.timestamp}")
+    for frame in dataset.frames[start_frame:end_frame]:
         ball = Ball(frame.ball_coordinates.x, frame.ball_coordinates.y, frame.ball_coordinates.z)
-        # print(f"ball: {ball.x}:{ball.y}")
 
         players = [
             Player(
@@ -152,16 +145,5 @@ if __name__ == '__main__':
                 p.dist_to_ball if p.dist_to_ball is not None and not math.isnan(p.dist_to_ball) else 0,
             )
         )
-        # print(f"player_id | coords | team | speed | dist_to_ball")
-        frames.append(Frame(frame.frame_id, frame.timestamp, players, ball))
-        # for p in players[:5]:
-        #     if p.dist_to_ball and not math.isnan(p.dist_to_ball):
-        #         print(f"{p.player_id} | {p.x}:{p.y} | {p.team} | {p.speed} | {p.dist_to_ball}")
-
-
-    for f in frames:
-        f.repr()
-
-    save_frames(frames, ".")
-
-    
+        frames.append(Frame(frame.frame_id, frame.timestamp, players, ball, players_by_team=players_by_team))
+    return frames

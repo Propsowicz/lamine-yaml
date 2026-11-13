@@ -5,3 +5,6 @@ class Ball:
         self.x: float = x*PITCH_LENGTH
         self.y: float = y*PITCH_WIDTH
         self.z: float = z
+
+    def visible(self) -> bool:
+        return self.x is not None and self.y is not None

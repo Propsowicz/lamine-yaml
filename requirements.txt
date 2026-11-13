@@ -12,3 +12,5 @@ matplotlib
 opencv-python
 python-dotenv
 setuptools<82
+pandas
+python-dotenv

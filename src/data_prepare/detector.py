@@ -1,10 +1,8 @@
 
 from pathlib import Path
-import supervision as sv
 import cv2
 import numpy as np
 from ultralytics import YOLO
-from sklearn.cluster import KMeans
 from models.player import DetectedPlayer
 from models.frame import DetectedFrame
 import cv2
@@ -49,78 +47,112 @@ class PlayersDetector:
         return np.linalg.inv(homography_per_frame)
 
 
-    def detect(self, start_frame: int = 11185, end_frame: int = 11189) -> list[DetectedFrame]:
+    def detect(
+        self,
+        start_frame: int = 11185,
+        end_frame: int = 11189,
+        frame_interval: int = 25,
+    ) -> list[DetectedFrame]:
+        if frame_interval <= 0:
+            raise ValueError("frame_interval must be greater than 0")
+
         cap = cv2.VideoCapture(self.video_path)
-        if cap is None:
-            raise FileNotFoundError(f"Cannot read {self.image_path}")
+        if not cap.isOpened():
+            raise FileNotFoundError(f"Cannot read {self.video_path}")
 
         try:
             cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+
             result: list[DetectedFrame] = []
+            previous_players: list[DetectedPlayer] | None = None
 
             for frame_index in range(start_frame, end_frame):
-                print(f"frame {frame_index} is being detected...")
                 success, frame = cap.read()
                 if not success:
-                    print(f"cannot read data for frame: {frame_index}")
+                    print(f"Cannot read data for frame: {frame_index}")
                     break
 
-                player_result = self.player_model.predict(
-                    frame,
-                    imgsz=self.config.imgsz,
-                    conf=self.config.conf,
-                    iou=self.config.iou,
-                    max_det=self.config.max_det,
-                    verbose=False,
-                )[0]
-                homography = self.load_homography(frame_index)
+                # Run detection on every Nth frame.
+                should_detect = (
+                    previous_players is None
+                    or (frame_index - start_frame) % frame_interval == 0
+                )
 
-                players: list[DetectedPlayer] = []
-                
-                for detection in player_result.boxes:
-                    class_id = int(detection.cls.item())
-        
-                    if class_id not in {PLAYER_CLASS_ID, GOALKEEPER_CLASS_ID}:
-                        continue
-        
-                    x1, y1, x2, y2 = map(
-                        int,
-                        detection.xyxy[0].cpu().numpy().round(),
-                    )
-        
-                    box = (x1, y1, x2, y2)
-        
-                    center_x = (x1 + x2) / 2.0
-                    center_y = (y1 + y2) / 2.0
-        
-                    pitch_x, pitch_y = self._image_to_pitch_meters(
-                        (center_x, center_y),
-                        homography,
-                    )
-        
-                    players.append(
-                        DetectedPlayer(
-                            x=pitch_x,
-                            y=pitch_y,                            
-                            player_team="tbd",
-                            box=box
+                if should_detect:
+                    print(f"Detecting players in frame {frame_index}...")
+
+                    player_result = self.player_model.predict(
+                        frame,
+                        imgsz=self.config.imgsz,
+                        conf=self.config.conf,
+                        iou=self.config.iou,
+                        max_det=self.config.max_det,
+                        verbose=False,
+                    )[0]
+
+                    homography = self.load_homography(frame_index)
+
+                    players: list[DetectedPlayer] = []
+
+                    for detection in player_result.boxes:
+                        class_id = int(detection.cls.item())
+
+                        if class_id not in {
+                            PLAYER_CLASS_ID,
+                            GOALKEEPER_CLASS_ID,
+                        }:
+                            continue
+
+                        x1, y1, x2, y2 = map(
+                            int,
+                            detection.xyxy[0].cpu().numpy().round(),
                         )
-                    )
-        
-                if not players:
-                    raise RuntimeError(
-                        "No players detected. Try lowering the confidence threshold."
+
+                        box = (x1, y1, x2, y2)
+
+                        center_x = (x1 + x2) / 2.0
+                        center_y = (y1 + y2) / 2.0
+
+                        pitch_x, pitch_y = self._image_to_pitch_meters(
+                            (center_x, center_y),
+                            homography,
+                        )
+
+                        players.append(
+                            DetectedPlayer(
+                                x=pitch_x,
+                                y=pitch_y,
+                                player_team="tbd",
+                                box=box,
+                            )
+                        )
+
+                    if not players:
+                        raise RuntimeError(
+                            f"No players detected in frame {frame_index}. "
+                            "Try lowering the confidence threshold."
+                        )
+
+                    previous_players = self.assign_players_to_teams(
+                        frame,
+                        players,
                     )
 
-                result.append(DetectedFrame(
-                    frame_id=frame_index,
-                    players=self.assign_players_to_teams(frame, players)
-                ))
-        except:
-            raise "cannot detect players"
+                # Reuse players from the last detected frame.
+                result.append(
+                    DetectedFrame(
+                        frame_id=frame_index,
+                        players=previous_players.copy(),
+                    )
+                )
+
+            return result
+
+        except Exception as exc:
+            raise RuntimeError("Cannot detect players") from exc
+
         finally:
-            cap.release()      
-        return result
+            cap.release()
         
     # TODO: this method is crucial to recognize teams BUT we need more than two teams
     def assign_players_to_teams(

@@ -8,7 +8,6 @@ from models.ball import Ball
 from utils.constants import PITCH_LENGTH, PITCH_WIDTH
 from statistics import median
 from collections import Counter, defaultdict
-from uuid import uuid4
 class Combiner:
     UNKNOWN_TEAMS = {"", "tbd", "unknown", "none"}
 
@@ -174,7 +173,6 @@ class Combiner:
             player_team_key = ranked_votes[0][0]
             team_mapping[detected_team] = team_names[player_team_key]
 
-        self.logger.info("Detected team mapping: %s", team_mapping)
 
         return team_mapping
 
@@ -259,10 +257,10 @@ class Combiner:
             ]
     
             if len(inliers) < 3:
-                self.logger.warning(
-                    "Could not normalize detected player positions: "
-                    "not enough consistent matches."
-                )
+                # self.logger.warning(
+                #     "Could not normalize detected player positions: "
+                #     "not enough consistent matches."
+                # )
                 return normalized
     
             dx = median(x for x, _ in inliers)
@@ -273,13 +271,6 @@ class Combiner:
                 detection.x += dx
                 detection.y += dy
     
-            self.logger.info(
-                "Normalized detected player positions: dx=%.2f, dy=%.2f "
-                "(%d matched players)",
-                dx,
-                dy,
-                len(inliers),
-            )
     
             return normalized
 
