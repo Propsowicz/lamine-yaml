@@ -5,5 +5,5 @@ numpy
 scikit-learn
 kloppy
 matplotlib
-opencv-python
+pandas
 python-dotenv

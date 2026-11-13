@@ -1,10 +1,8 @@
 
 from pathlib import Path
-import supervision as sv
 import cv2
 import numpy as np
 from ultralytics import YOLO
-from sklearn.cluster import KMeans
 from models.player import DetectedPlayer
 from models.frame import DetectedFrame
 import cv2

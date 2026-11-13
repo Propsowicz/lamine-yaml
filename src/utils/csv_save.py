@@ -58,7 +58,6 @@ def read_frames(file_path: str) -> list[DetectedFrame]:
 def csv_exists(file_path: str) -> bool:
     return Path(file_path).is_file()
 
-    import csv
 from collections.abc import Sequence
 from pathlib import Path
 
