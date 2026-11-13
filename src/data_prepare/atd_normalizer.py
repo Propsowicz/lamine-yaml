@@ -2,7 +2,12 @@
 import os
 import sys
 import math
-from data_prepare.games import require, asset_paths
+import xml.etree.ElementTree as ET
+
+from models.ball import Ball
+from models.player import Player
+from models.frame import Frame
+from data_prepare.games import require
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -95,12 +100,21 @@ def check_alignment(dataset, game=GAME, source=DEFAULT_SOURCE):
         "agrees": len(ids) == expected and contiguous and bool(ids) and ids[0] == 1,
     }
 
-import csv
-from pathlib import Path
 
-from models.ball import Ball
-from models.player import Player
-from models.frame import Frame
+def load_atd_metadata(game=GAME, data_dir=None, source=DEFAULT_SOURCE):
+    meta_path = require(["atd_meta"], game, data_dir, source)[0]
+    root = ET.parse(meta_path).getroot()
+
+    score = root.find('.//Score')
+    names = {t.get('id'): t.findtext('Name') for t in root.findall('.//Teams/Team')}
+    teams = {
+        'home': names[score.get('idLocalTeam')],
+        'away': names[score.get('idVisitingTeam')],
+    }
+    
+    return {
+        'teams': teams,
+    }
 
 def normalize_atd_file(data_path: str, start_frame: int = 1, end_frame: int = 199319) -> list[Frame]:
     dataset = load(data_dir=data_path)

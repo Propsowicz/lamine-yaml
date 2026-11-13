@@ -8,7 +8,6 @@ from models.ball import Ball
 from utils.constants import PITCH_LENGTH, PITCH_WIDTH
 from statistics import median
 from collections import Counter, defaultdict
-from uuid import uuid4
 class Combiner:
     UNKNOWN_TEAMS = {"", "tbd", "unknown", "none"}
 

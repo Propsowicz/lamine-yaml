@@ -1,12 +1,11 @@
-from dotenv import load_dotenv
-
 from data_prepare.ball_gaps_interpolation import interpolate_short_gaps
 import os
+import argparse
+from data_prepare.games import GAME, GAMES
 from pathlib import Path
 from data_prepare.detector import PlayersDetector, YOLOConfig
-from data_prepare.atd_normalizer import normalize_atd_file
-from models.frame import Frame, DetectedFrame
-from utils.chart_helper import plot_coordinates, draw_frame
+from data_prepare.atd_normalizer import normalize_atd_file, load_atd_metadata
+from models.frame import Frame
 from data_prepare.data_sets_combiner import Combiner
 from models.player import Player
 from data_prepare.player_tracker_validator import validate_player_tracking
@@ -91,7 +90,6 @@ class PosessionCalc:
             for p in combined_players:
                 p.calculate_distance_to_ball(current_frame.ball)
             
-            # TODO distance to ball needs to recalculated (remove it from init)
             result.append(Frame(
                 current_frame.id,
                 current_frame.timestamp,
@@ -103,8 +101,16 @@ class PosessionCalc:
         return result
         
 if __name__ == '__main__':
-    START_FRAME=11185
-    END_FRAME=18684
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--result-name", type=str, default="CK", help="Name for the result file")
+    args = parser.parse_args()
+
+    atd_metadata = load_atd_metadata(data_dir=DATA_PATH)
+    teams = atd_metadata['teams']
+
+    START_FRAME = 1
+    END_FRAME = GAMES[GAME]["n_video_frames"]
+    
     st_events = load_smart_tagging(
         start_frame=START_FRAME,
         end_frame=END_FRAME,
@@ -113,7 +119,6 @@ if __name__ == '__main__':
     
     calc = PosessionCalc(start_frame=START_FRAME, end_frame=END_FRAME)
     frames = calc.load_frames()
-
 
     touches = detect_ball_touches(frames, radius_m=1.5)
     ball_out_events = detect_ball_out_events(frames, PITCH_LENGTH, PITCH_WIDTH)
@@ -124,16 +129,14 @@ if __name__ == '__main__':
             print(f"{t.touch_timestamp}(frame:{t.touch_frame_id}): {t.touch_type} - {t.players}")
         else:
             print(f"{t.start_timestamp}:{t.end_timestamp}(frame:{t.start_frame_id}:{t.end_frame_id}): {t.touch_type} - {t.players}")
-    # for f in frames:
-    #     draw_frame(f.players, f.id, timestamp=None, save=True, show_labels=True, save_name_prefix="frame_result")
 
     labels = create_frame_labels(
-        199319,
-        "Barcelona",
-        "Atletic Club",
+        END_FRAME,
+        teams['home'],
+        teams['away'],
         touches,
         dead_ball_ranges,
         ball_out_events
     )
-    save_frame_labels_to_csv(labels, "./result.csv")
+    save_frame_labels_to_csv(labels, f"{args.result_name}.csv")
    
