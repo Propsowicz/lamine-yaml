@@ -170,80 +170,59 @@ class PlayersDetector:
             for player in players
         ])
 
-        if len(players) == 1:
-            players[0].team = "Single 1"
-            players[0].team_confidence = 0.5
+        valid = ~np.isnan(features).any(axis=1)
+    
+        if valid.sum() < 4:
+            for player in players:
+                player.team, player.team_confidence = None, 0.0
             return players
+    
+        km = KMeans(n_clusters=2, n_init=10, random_state=0).fit(features[valid])
+        centers = km.cluster_centers_
 
-        labels = DBSCAN(
-            #TODO: to determine -> less is more strict, more is less strict (26)
-            eps=26,
-            min_samples=1,
-            metric="euclidean",
-        ).fit_predict(features)
-
-        cluster_counts = Counter(labels)
-
-        ordered_clusters = [
-            cluster
-            for cluster, _ in cluster_counts.most_common()
-        ]
-
-        cluster_names = {}
-
-        for index, cluster in enumerate(ordered_clusters):
-            if index < 2:
-                cluster_names[cluster] = f"Team {index + 1}"
-            elif index < 5:
-                cluster_names[cluster] = f"Single {index - 1}"
-            else:
-                cluster_names[cluster] = None
-
-        # Calculate representative color for every cluster.
-        cluster_centers = {
-            cluster: np.median(
-                features[labels == cluster],
-                axis=0,
-            )
-            for cluster in ordered_clusters
-        }
-
-        for player, color, label in zip(players, features, labels):
-            player.team = cluster_names[label]
-
-            center = cluster_centers[label]
-            distance = float(np.linalg.norm(color - center))
-
-            # Distance-based confidence.
-            player.team_confidence = float(
-                np.exp(-distance / 15.0)
-            )
-
-            # A single observation provides weaker evidence.
-            if cluster_counts[label] == 1:
-                player.team_confidence *= 0.5
-
+        dists = np.linalg.norm(features[:, None, :] - centers[None, :, :], axis=2)
+        nearest = dists.argmin(axis=1)
+        d_near = dists.min(axis=1)
+        d_other = dists.max(axis=1)
+    
+        med = np.median(d_near[valid])
+        mad = np.median(np.abs(d_near[valid] - med)) + 1e-6
+        outlier_thr = med + 3.5 * 1.4826 * mad
+    
+        for index, player in enumerate(players):
+            if not valid[index] or d_near[index] > outlier_thr:
+                player.team = "Other"       
+                player.team_confidence = 0.0
+                continue
+            
+            player.team = f"Team {nearest[index] + 1}"
+            player.team_confidence = float(1 - d_near[index] / (d_other[index] + 1e-6))
         return players
 
-    def _get_shirt_color(self, image: np.ndarray, box: tuple) -> tuple:
-        x1, y1, x2, y2 = box
-        width = x2 - x1
-        height = y2 - y1
-
-        left = max(0, x1 + int(width * 0.25))
-        right = min(image.shape[1], x2 - int(width * 0.25))
-        top = max(0, y1 + int(height * 0.20))
-        bottom = min(image.shape[0], y1 + int(height * 0.55))
-
+    def _get_shirt_color(self, image: np.ndarray, box: tuple) -> np.ndarray:
+        x1, y1, x2, y2 = map(int, box)
+        width, height = x2 - x1, y2 - y1
+    
+        left   = max(0, x1 + int(width * 0.25))
+        right  = min(image.shape[1], x2 - int(width * 0.25))
+        top    = max(0, y1 + int(height * 0.15))
+        bottom = min(image.shape[0], y1 + int(height * 0.50))
+    
         crop = image[top:bottom, left:right]
-
         if crop.size == 0:
-            return np.zeros(3, dtype=np.float32)
-
+            return np.full(3, np.nan, dtype=np.float32)
+    
+        # Grass mask
+        hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+        grass = cv2.inRange(hsv, (35, 40, 40), (85, 255, 255))
+        keep = grass == 0
+    
+        if keep.sum() < 0.15 * keep.size:
+            keep = np.ones_like(keep, dtype=bool)
+    
         lab = cv2.cvtColor(crop, cv2.COLOR_BGR2LAB)
-        return np.median(lab.reshape(-1, 3), axis=0).astype(
-            np.float32
-        )
+        pixels = lab[keep].astype(np.float32)
+        return np.median(pixels, axis=0)
 
     def _image_to_pitch_meters(
         self,
