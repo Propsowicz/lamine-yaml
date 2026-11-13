@@ -122,6 +122,7 @@ if __name__ == '__main__':
         end_frame=END_FRAME - 1,
         video=VIDEO_PATH,
         game=GAME,
+        threshold=0.005,
     )
     calc = PosessionCalc(start_frame=START_FRAME, end_frame=END_FRAME)
     frames = calc.load_frames()
@@ -129,7 +130,8 @@ if __name__ == '__main__':
     touches = detect_ball_touches(frames, radius_m=1.5)
     ball_out_events = detect_ball_out_events(frames, PITCH_LENGTH, PITCH_WIDTH)
  
-    dead_ball_ranges = detect_dead_ball_ranges(frames, st_events, touches)
+    dead_ball_ranges = detect_dead_ball_ranges(
+        frames, st_events, touches, whistle_events, game=GAME)
 
     for t in touches:
         if t.touch_type == TouchType.PASS:
