@@ -17,6 +17,7 @@ import logging
 from data_analyze.ball_out_analyzer import detect_ball_out_events
 from utils.constants import PITCH_LENGTH, PITCH_WIDTH
 from data_prepare.smart_tagging import SmartTaggingCode, load_smart_tagging
+from whistle.full_video_whistle import detect_whistle_events
 
 from utils.setup_logging import setup_logging
 
@@ -116,12 +117,18 @@ if __name__ == '__main__':
         end_frame=END_FRAME,
         code=SmartTaggingCode.SET_PIECES,
     )
-    
+    whistle_events = detect_whistle_events(
+        start_frame=START_FRAME,
+        end_frame=END_FRAME - 1,
+        video=VIDEO_PATH,
+        game=GAME,
+    )
     calc = PosessionCalc(start_frame=START_FRAME, end_frame=END_FRAME)
     frames = calc.load_frames()
 
     touches = detect_ball_touches(frames, radius_m=1.5)
     ball_out_events = detect_ball_out_events(frames, PITCH_LENGTH, PITCH_WIDTH)
+ 
     dead_ball_ranges = detect_dead_ball_ranges(frames, st_events, touches)
 
     for t in touches:
@@ -129,6 +136,13 @@ if __name__ == '__main__':
             print(f"{t.touch_timestamp}(frame:{t.touch_frame_id}): {t.touch_type} - {t.players}")
         else:
             print(f"{t.start_timestamp}:{t.end_timestamp}(frame:{t.start_frame_id}:{t.end_frame_id}): {t.touch_type} - {t.players}")
+
+    for whistle in whistle_events:
+        print(
+            f"Potential whistle {whistle.start_timestamp}:{whistle.end_timestamp}"
+            f"(frame:{whistle.start_frame_id}:{whistle.end_frame_id}, "
+            f"peak score:{whistle.peak_score:.4f})"
+        )
 
     labels = create_frame_labels(
         END_FRAME,

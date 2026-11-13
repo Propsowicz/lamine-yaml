@@ -1,72 +1,29 @@
-# Full tactical-video whistle POC
+# Whistle event detection
 
-Run with the actual project's virtual environment from the project root:
+Call the event detector with an inclusive, zero-based frame range from the tactical video:
 
-```powershell
-.venv/Scripts/python.exe src/whistle/full_video_whistle.py --ffmpeg 'PATH/TO/ffmpeg.exe'
+```python
+from whistle.full_video_whistle import detect_whistle_events
+
+events = detect_whistle_events(start_frame=10_000, end_frame=12_500)
+for event in events:
+    print(event.start_frame_id, event.end_frame_id, event.peak_score)
 ```
 
-FFprobe must be alongside FFmpeg. The defaults use only
-`data/tactical/BAR-ATH_tactical.mp4`, never the unsynchronized broadcast video.
-The original `check_whistle.py` remains a separate two-minute experiment.
+The detector returns `list[WhistleEvent]`. Each event provides start/end frame IDs
+and elapsed timestamps, peak frame/time/score, the threshold used, and the number
+of above-threshold YAMNet windows merged into it. The default threshold is `0.01`;
+pass `threshold=...` or `merge_gap=...` to adjust candidate grouping. These are
+potential acoustic whistle events, not verified referee whistles.
 
-YAMNet downloads are cached persistently in `output/tfhub_cache/`, avoiding
-incomplete downloads in the shared Windows temporary TF Hub cache. Override
-this location with `--model-cache PATH` (takes precedence over `TFHUB_CACHE_DIR`).
-If validation reports a missing `saved_model.pb`, pass a new empty cache
-directory to download again. The existing extracted WAV can still be reused.
+Defaults use the game's tactical video and FPS. `video`, `wav`, `game`, `data_dir`,
+`fps`, `ffmpeg`, and `model_cache` can be supplied as keyword arguments when using
+other assets or cache locations. FFmpeg and FFprobe must be available (or FFmpeg's
+executable can be passed as `ffmpeg`). The extracted segment WAV is cached under
+`output/whistle_full/` with the video name and frame bounds; the YAMNet model is
+cached under `output/tfhub_cache/`.
 
-The runner extracts the entire first audio stream into
-`data/tactical/full_audio_16k_mono.wav` (mono PCM16, 16 kHz). There is no seek or
-duration limit. An existing WAV is reused after checking its format and duration;
-remove or rename it explicitly if the source changes.
-
-Outputs in `output/whistle_full/`:
-
-- `scores.csv`: every Whistle score, window bounds, and center time in seconds
-  from tactical-video start, including pre-match and halftime.
-- `candidates.csv`: intervals merged separately at each threshold, with peak
-  score/time and number of above-threshold windows. IDs restart per threshold.
-- `summary.json`: counts, source metadata, extraction command, duration checks,
-  chunk-boundary verification, and timing conventions.
-- `scores.png`: full timeline and a low-score detail view.
-
-YAMNet uses a 0.48-second hop. Its nominal 0.96-second spectrogram patch needs
-0.975 seconds of waveform because of the final STFT window. Timestamps here use
-the center of that acoustic support (start + 0.4875 seconds), clipped at audio
-end. They are approximate event times, not exact whistle onsets.
-
-Default chunks retain 120 windows (57.6 seconds of starts), with 0.495 seconds
-of waveform overlap so every retained patch has full context. Extra padded
-patches are discarded. Only the actual file end needs zero padding. A separate
-four-window inference spanning the first chunk boundary checks score agreement.
-Candidates are merged globally, so a whistle crossing a chunk boundary is not
-counted twice. Above-threshold acoustic windows are merged when they overlap;
-`--merge-gap` optionally permits an extra gap (default zero).
-
-The default thresholds 0.005, 0.01, and 0.02 are exploratory. Counts are candidate
-intervals, not validated referee whistles: crowd whistles and music may trigger
-the generic AudioSet Whistle class, and real whistles may be missed. Calibration
-requires manually reviewed positive and negative examples.
-
-Model timing reference: https://github.com/tensorflow/models/tree/master/research/audioset/yamnet
-
-## Completed run
-
-The delivered tactical audio contains 127,563,093 mono samples at 16 kHz
-(7,972.6933125 seconds, approximately 2:12:52.693). Audio and video both start
-at zero. The video lasts 7,972.76 seconds; the 66.7 ms difference is in the source.
-
-All 16,609 score windows were processed. Candidate interval counts were:
-
-| Threshold | Candidates |
-| --- | ---: |
-| 0.005 | 261 |
-| 0.01 | 140 |
-| 0.02 | 56 |
-
-The maximum Whistle score was 0.130830 at video 2:04:03.3675. The independent
-chunk-boundary comparison had maximum absolute error 0.0. Synthetic checks
-also covered threshold filtering, overlapping-window merging, merging across
-the chunk boundary, and clipping to the file end. Candidate CSV row counts
-were checked independently against the summary.
+Only audio from the requested frame interval is extracted and scored. YAMNet uses a
+0.48-second hop and 0.975-second acoustic windows, so it may pad the segment edges
+when a full window of samples is unavailable. Event bounds are clipped to the
+requested interval; timing is approximate at the model's 0.48-second resolution.
