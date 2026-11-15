@@ -132,7 +132,7 @@ if __name__ == '__main__':
  
     dead_ball_ranges = detect_dead_ball_ranges(
         frames, st_events, touches, whistle_events,
-        game=GAME, whistle_followup_seconds=15.0)
+        game=GAME, whistle_followup_seconds=10.0)
 
     for t in touches:
         if t.touch_type == TouchType.PASS:
