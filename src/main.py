@@ -51,7 +51,7 @@ class PosessionCalc:
         else:
             self.logger.info("Started players detection.")
             detection_config = YOLOConfig(
-                        imgsz=1568,
+                        imgsz=800,
                         conf=0.1,
                         iou=0.7,
                         max_det=300
