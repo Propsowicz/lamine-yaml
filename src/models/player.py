@@ -11,6 +11,7 @@ class Player:
         self.x: float = x*PITCH_LENGTH
         self.y: float = y*PITCH_WIDTH
         self.speed: float = speed
+        self.from_detection = from_detection
         self.dist_to_ball: float = 0 if from_detection else self._calculate_distance_to_ball(x, y, ball.x, ball.y)
         self.is_from_atg_detection: bool = True
         self.is_from_player_tracker_validator: bool = is_from_player_tracker_validator

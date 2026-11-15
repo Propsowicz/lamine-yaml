@@ -1,5 +1,6 @@
 from collections.abc import Sequence
 from typing import Literal
+from data_analyze.dead_ball_analyzer import DeadBallRange
 from data_prepare.touch_ball_tracker import BallTouchEvent, TouchType
 from data_analyze.ball_out_analyzer import BallOutEvent
 FrameLabel = Literal["X", "D", "H", "A"]
@@ -10,7 +11,7 @@ def create_frame_labels(
     home_team: str,
     away_team: str,
     events: Sequence[BallTouchEvent],
-    dead_ball_ranges: Sequence[tuple[int, int]] = (),
+    dead_ball_ranges: Sequence[DeadBallRange] = (),
     ball_out_events: Sequence[BallOutEvent] = (),
 ) -> list[FrameLabel]:
     if number_of_frames < 0:
@@ -131,12 +132,12 @@ def create_frame_labels(
         )
 
     # Apply dead-ball labels.
-    for start_frame, end_frame in dead_ball_ranges:
-        fill_range(start_frame, end_frame, "D")
+    for dead_range in dead_ball_ranges:
+        fill_range(dead_range.start_frame_id, dead_range.end_frame_id, "D")
 
     # A restart touch can be UNCONFIRMED, but its nearest player still
     # identifies the team that took the first touch after a dead-ball range.
-    restart_frames = {end_frame + 1 for _, end_frame in dead_ball_ranges}
+    restart_frames = {dead_range.end_frame_id + 1 for dead_range in dead_ball_ranges}
     for restart_frame in restart_frames:
         if not 0 <= restart_frame < number_of_frames:
             continue
