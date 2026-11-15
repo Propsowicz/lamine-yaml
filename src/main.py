@@ -109,8 +109,8 @@ if __name__ == '__main__':
     atd_metadata = load_atd_metadata(data_dir=DATA_PATH)
     teams = atd_metadata['teams']
 
-    START_FRAME = 11185
-    END_FRAME = 18684
+    START_FRAME = 85500
+    END_FRAME = 93000
     
     st_events = load_smart_tagging(
         start_frame=START_FRAME,

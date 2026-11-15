@@ -17,6 +17,9 @@ from utils.constants import PITCH_LENGTH, PITCH_WIDTH
 from utils.time_format import format_elapsed_time
 
 Point = tuple[float, float]
+STOP_SCORE_WEIGHT_TOTAL = 1.22
+STOP_SCORE_THRESHOLD = 0.70 / STOP_SCORE_WEIGHT_TOTAL
+SET_PIECE_STOP_SCORE_THRESHOLD = 0.55 / STOP_SCORE_WEIGHT_TOTAL
 
 
 @dataclass(frozen=True)
@@ -27,7 +30,6 @@ class Observation:
     identified_player_positions: dict[str, Point]
     visible_count: int
     identified_count: int
-    unassigned_count: int
     near_ball_count: int | None
     approaching_count: int | None
     leaving_count: int | None
@@ -96,15 +98,33 @@ def _ball_position(frame: Frame) -> Point | None:
     return (x, y) if isfinite(x) and isfinite(y) else None
 
 
+def _inside_pitch(point: Point) -> bool:
+    x, y = point
+    return 0 <= x <= PITCH_LENGTH and 0 <= y <= PITCH_WIDTH
+
+
+def _outside_pitch_side(point: Point, margin_m: float) -> str | None:
+    x, y = point
+    if x < -margin_m:
+        return "left"
+    if x > PITCH_LENGTH + margin_m:
+        return "right"
+    if y < -margin_m:
+        return "top"
+    if y > PITCH_WIDTH + margin_m:
+        return "bottom"
+    return None
+
+
 def _build_observations(
     frames: Sequence[Frame], game: str, approach_lookback_frames: int,
-    exit_lookback_frames: int, near_ball_radius_m: float, pitch_margin_m: float,
-    exit_outside_margin_m: float, exit_edge_radius_m: float,
-    minimum_exit_progress_m: float,
+    exit_lookback_frames: int, exit_confirmation_frames: int,
+    near_ball_radius_m: float, pitch_margin_m: float,
+    exit_outside_margin_m: float, exit_crossing_margin_m: float,
 ) -> dict[int, Observation]:
     raw: dict[int, tuple[
         Frame, Point | None, dict[str, Point], dict[str, Point], dict[str, Point],
-        int, int, int, float | None,
+        int, int, float | None,
     ]] = {}
     known_teams = {
         str(team).strip().casefold()
@@ -121,7 +141,6 @@ def _build_observations(
         identified_positions: dict[str, Point] = {}
         tracked_positions: dict[str, Point] = {}
         speeds = []
-        unassigned_count = 0
         for player in frame.players:
             x, y = player.x, player.y
             if x is None or y is None:
@@ -148,8 +167,6 @@ def _build_observations(
             positions[player_id] = (x, y)
             if assigned and not is_detection and not is_virtual:
                 identified_positions[player_id] = (x, y)
-            if team in unknown_team_names or (known_teams and team not in known_teams):
-                unassigned_count += 1
             speed = player.speed
             if (not is_detection
                     and speed is not None and isfinite(float(speed)) and float(speed) >= 0):
@@ -157,13 +174,13 @@ def _build_observations(
         ball = _ball_position(frame)
         raw[video_id] = (
             frame, ball, positions, tracked_positions, identified_positions, len(positions),
-            len(identified_positions), unassigned_count,
+            len(identified_positions),
             mean(speeds) if speeds else None,
         )
 
     observations: dict[int, Observation] = {}
     for video_id, (frame, ball, positions, tracked_positions, identified_positions,
-                   visible, identified, unassigned, speed) in raw.items():
+                   visible, identified, speed) in raw.items():
         if ball is None:
             near_count = None
         else:
@@ -190,24 +207,26 @@ def _build_observations(
         exit_previous = raw.get(video_id - exit_lookback_frames)
         leaving_count = None
         if exit_previous is not None:
-            old_tracked_positions = exit_previous[4]
-            exit_progress = []
+            old_tracked_positions = exit_previous[3]
+            confirmed_exits = 0
             for player_id, current in tracked_positions.items():
                 old = old_tracked_positions.get(player_id)
-                if old is None:
+                if old is None or not _inside_pitch(old):
                     continue
-                old_edge = min(old[0], PITCH_LENGTH - old[0], old[1], PITCH_WIDTH - old[1])
-                current_edge = min(
-                    current[0], PITCH_LENGTH - current[0],
-                    current[1], PITCH_WIDTH - current[1],
+                exit_side = _outside_pitch_side(current, exit_crossing_margin_m)
+                if exit_side is None:
+                    continue
+                stayed_outside = all(
+                    (future := raw.get(future_id)) is not None
+                    and player_id in future[3]
+                    and _outside_pitch_side(
+                        future[3][player_id], exit_crossing_margin_m
+                    ) == exit_side
+                    for future_id in range(video_id, video_id + exit_confirmation_frames)
                 )
-                exit_progress.append((old_edge, current_edge))
-            if exit_progress:
-                leaving_count = sum(
-                    old_edge - current_edge >= minimum_exit_progress_m
-                    and current_edge <= exit_edge_radius_m
-                    for old_edge, current_edge in exit_progress
-                )
+                if stayed_outside:
+                    confirmed_exits += 1
+            leaving_count = confirmed_exits
 
         observations[video_id] = Observation(
             average_speed=speed,
@@ -216,7 +235,6 @@ def _build_observations(
             identified_player_positions=identified_positions,
             visible_count=visible,
             identified_count=identified,
-            unassigned_count=unassigned,
             near_ball_count=near_count,
             approaching_count=approaching_count,
             leaving_count=leaving_count,
@@ -276,7 +294,6 @@ def _onset_evidence(
     segment_start: int,
     window_frames: int,
     visible_baseline: float,
-    unassigned_baseline: float,
     whistle_frames: Sequence[int],
     set_piece_ranges: Sequence[tuple[int, int]],
     set_piece_starts: Sequence[int],
@@ -284,7 +301,6 @@ def _onset_evidence(
     slowdown_ratio: float,
     minimum_speed_drop_mps: float,
     ball_stationary_radius_m: float,
-    unassigned_player_minimum: int,
     fewer_visible_margin: int,
     leaving_players_minimum: int,
     no_near_ball_fraction: float,
@@ -335,11 +351,6 @@ def _onset_evidence(
         visible_average is not None
         and visible_average <= visible_baseline - fewer_visible_margin
     )
-    unassigned_average = _window_mean(post, "unassigned_count")
-    unassigned_anomaly = (
-        unassigned_average is not None
-        and unassigned_average >= max(unassigned_player_minimum, unassigned_baseline + 1)
-    )
     leaving_rate = _window_cue_rate(
         post, "leaving_count", lambda count: count >= leaving_players_minimum)
     leaving_samples = sum(item.leaving_count is not None for item in post)
@@ -362,29 +373,30 @@ def _onset_evidence(
         "no_near_ball": no_near_ball,
         "no_approach": no_approach,
         "fewer_visible": fewer_visible,
-        "unassigned_anomaly": unassigned_anomaly,
         "leaving_pitch": leaving_pitch,
         "in_set_piece": in_set_piece,
     }
     score = _weighted_score(features)
-    threshold = 0.55 if in_set_piece else 0.70
+    threshold = (SET_PIECE_STOP_SCORE_THRESHOLD if in_set_piece
+                 else STOP_SCORE_THRESHOLD)
     accepted = score >= threshold and ball_stable and (
-        slowdown or unassigned_anomaly or no_near_ball or no_approach
+        slowdown or no_near_ball or no_approach
     ) or (whistle and leaving_pitch)
     return score, accepted, features
 
 
 def _weighted_score(features: dict[str, float | bool]) -> float:
-    return (
+    weighted_total = (
         0.28 * bool(features.get("whistle"))
         + 0.25 * bool(features.get("slowdown"))
         + 0.18 * bool(features.get("ball_stable"))
         + 0.08 * bool(features.get("no_near_ball"))
         + 0.08 * bool(features.get("no_approach"))
         + 0.10 * bool(features.get("fewer_visible"))
-        + 0.22 * bool(features.get("unassigned_anomaly"))
         + 0.25 * bool(features.get("leaving_pitch"))
     )
+    # Preserve the relative weight of the remaining cues and keep scores in [0, 1].
+    return weighted_total / STOP_SCORE_WEIGHT_TOTAL
 
 
 def _confirm_whistle_forward(
@@ -396,14 +408,12 @@ def _confirm_whistle_forward(
     window_frames: int,
     scan_step_frames: int,
     visible_baseline: float,
-    unassigned_baseline: float,
     set_piece_ranges: Sequence[tuple[int, int]],
     set_piece_starts: Sequence[int],
     *,
     slowdown_ratio: float,
     minimum_speed_drop_mps: float,
     ball_stationary_radius_m: float,
-    unassigned_player_minimum: int,
     fewer_visible_margin: int,
     leaving_players_minimum: int,
     no_near_ball_fraction: float,
@@ -424,19 +434,17 @@ def _confirm_whistle_forward(
         "no_near_ball": False,
         "no_approach": False,
         "fewer_visible": False,
-        "unassigned_anomaly": False,
         "leaving_pitch": False,
         "in_set_piece": False,
     }
     for confirmation_frame in range(scan_start, scan_end + 1, scan_step_frames):
         _, _, cues = _onset_evidence(
             confirmation_frame, observations, segment_start, window_frames,
-            visible_baseline, unassigned_baseline, [whistle_frame],
+            visible_baseline, [whistle_frame],
             set_piece_ranges, set_piece_starts,
             slowdown_ratio=slowdown_ratio,
             minimum_speed_drop_mps=minimum_speed_drop_mps,
             ball_stationary_radius_m=ball_stationary_radius_m,
-            unassigned_player_minimum=unassigned_player_minimum,
             fewer_visible_margin=fewer_visible_margin,
             leaving_players_minimum=leaving_players_minimum,
             no_near_ball_fraction=no_near_ball_fraction,
@@ -445,13 +453,13 @@ def _confirm_whistle_forward(
             slowdown_reference_frame=whistle_frame,
         )
         for name in ("slowdown", "ball_stable", "no_near_ball", "no_approach",
-                     "fewer_visible", "unassigned_anomaly", "leaving_pitch"):
+                     "fewer_visible", "leaving_pitch"):
             accumulated[name] = bool(accumulated[name]) or bool(cues[name])
         for name in ("slowdown_strength", "ball_stability_strength"):
             accumulated[name] = max(float(accumulated[name]), float(cues[name]))
         corroborating_cue_here = any(bool(cues[name]) for name in (
             "slowdown", "ball_stable", "no_near_ball", "no_approach",
-            "fewer_visible", "unassigned_anomaly", "leaving_pitch",
+            "fewer_visible", "leaving_pitch",
         ))
         accumulated["in_set_piece"] = (
             bool(accumulated["in_set_piece"])
@@ -459,10 +467,11 @@ def _confirm_whistle_forward(
         )
 
         score = _weighted_score(accumulated)
-        threshold = 0.55 if accumulated["in_set_piece"] else 0.70
+        threshold = (SET_PIECE_STOP_SCORE_THRESHOLD if accumulated["in_set_piece"]
+                     else STOP_SCORE_THRESHOLD)
         has_other_cue = any(bool(accumulated[name]) for name in (
             "slowdown", "no_near_ball", "no_approach", "fewer_visible",
-            "unassigned_anomaly", "leaving_pitch",
+            "leaving_pitch",
         ))
         departure_confirm = bool(accumulated["whistle"]) and bool(accumulated["leaving_pitch"])
         if departure_confirm or (score >= threshold and accumulated["ball_stable"] and has_other_cue):
@@ -580,10 +589,9 @@ def detect_dead_ball_ranges(
     pitch_margin_m: float = 1.5,
     exit_lookback_seconds: float = 1.0,
     exit_outside_margin_m: float = 3.0,
-    exit_edge_radius_m: float = 6.0,
-    minimum_exit_progress_m: float = 0.6,
+    exit_crossing_margin_m: float = 0.25,
+    exit_confirmation_seconds: float = 0.3,
     leaving_players_minimum: int = 3,
-    unassigned_player_minimum: int = 3,
     fewer_visible_margin: int = 3,
     onset_confirm_seconds: float = 0.4,
     resume_window_seconds: float = 0.75,
@@ -594,12 +602,12 @@ def detect_dead_ball_ranges(
 ) -> list[DeadBallRange]:
     """Return inclusive dead-ball ranges on the tactical video's frame timeline.
 
-    Stop evidence is scored per frame with weights: whistle 0.28, player
-    slowdown 0.25, stable ball 0.18, no nearby players 0.08, no one approaching
-    the ball 0.08, fewer visible players than usual 0.10, unassigned players
-    0.22, and players moving toward/off a pitch boundary 0.25. A set-piece window
-    lowers the score threshold from 0.70 to 0.55; it never gates detection. The
-    ball must be stable for the general evidence path. A whistle remains pending for
+    Stop evidence is scored per frame using whistle, slowdown, ball stability,
+    no nearby players, no approaching players, fewer visible players, and
+    confirmed player exits. Scores are normalized to a maximum of 1.0.
+    The general threshold is 0.70 / 1.22 and the set-piece threshold is
+    0.55 / 1.22; a set-piece window lowers the score threshold but never gates
+    detection. The ball must be stable for the general evidence path. A whistle remains pending for
     ``whistle_followup_seconds`` (15 seconds by default), allowing later motion
     and stability cues to confirm the stoppage. Quiet whistle candidates are not
     filtered here; the caller controls the upstream detector threshold.
@@ -607,12 +615,13 @@ def detect_dead_ball_ranges(
     Player speeds and positions are taken from tracking frames. Positions beyond
     ``pitch_margin_m`` are excluded from normal visibility and proximity cues.
     For the departure cue, assigned real tracks are retained up to
-    ``exit_outside_margin_m`` beyond the pitch. At least
-    ``leaving_players_minimum`` tracks must move at least
-    ``minimum_exit_progress_m`` closer to a boundary within
-    ``exit_lookback_seconds`` while within ``exit_edge_radius_m`` of it. This
-    cue can confirm a pending whistle without ball stability. Detection-only
-    players (whose placeholder speed is zero) count for visibility but do not
+    ``exit_outside_margin_m`` beyond the pitch. A player must be inside the
+    pitch ``exit_lookback_seconds`` earlier, cross at least
+    ``exit_crossing_margin_m`` beyond one boundary, and remain tracked beyond
+    that same boundary for ``exit_confirmation_seconds``. At least
+    ``leaving_players_minimum`` confirmed exits provide the cue. It can confirm
+    a pending whistle without ball stability. Detection-only players (whose
+    placeholder speed is zero) count for visibility but do not
     contribute to tracked-player average speed or boundary departures. A player
     is counted as approaching when its distance to the current ball position falls
     by at least 0.25 m over a 0.4-second lookback. Resumption prefers a window
@@ -631,17 +640,18 @@ def detect_dead_ball_ranges(
     if fps <= 0 or scan_step_frames <= 0:
         raise ValueError("fps and scan_step_frames must be positive")
     if (ball_stationary_radius_m <= 0 or near_ball_radius_m <= 0 or pitch_margin_m < 0
-            or exit_lookback_seconds <= 0 or exit_outside_margin_m < 0
-            or exit_edge_radius_m <= 0 or minimum_exit_progress_m <= 0):
+            or exit_lookback_seconds <= 0 or exit_outside_margin_m <= 0
+            or exit_crossing_margin_m <= 0 or exit_confirmation_seconds <= 0
+            or exit_crossing_margin_m > exit_outside_margin_m):
         raise ValueError("Distance thresholds must be positive; margins must be nonnegative")
     if not 0 <= player_slowdown_ratio <= 1:
         raise ValueError("player_slowdown_ratio must be between 0 and 1")
     if any(value < 0 for value in (
         slowdown_window_seconds, whistle_settle_seconds, minimum_player_speed_drop_mps,
-        exit_lookback_seconds,
+        exit_lookback_seconds, exit_confirmation_seconds,
         whistle_followup_seconds, onset_confirm_seconds, resume_window_seconds, resume_player_speed_mps,
         resume_ball_displacement_m,
-    )) or min(unassigned_player_minimum, fewer_visible_margin) < 0 or leaving_players_minimum < 1:
+    )) or fewer_visible_margin < 0 or leaving_players_minimum < 1:
         raise ValueError("Motion thresholds and time windows must be nonnegative")
     if resume_minimum_identified_players < 1:
         raise ValueError("resume_minimum_identified_players must be positive")
@@ -653,10 +663,11 @@ def detect_dead_ball_ranges(
     whistle_followup_frames = round(whistle_followup_seconds * fps)
     approach_lookback = max(1, round(0.4 * fps))
     exit_lookback = max(1, round(exit_lookback_seconds * fps))
+    exit_confirmation = max(1, round(exit_confirmation_seconds * fps))
     observations = _build_observations(
-        frames, game, approach_lookback, exit_lookback, near_ball_radius_m,
-        pitch_margin_m, exit_outside_margin_m, exit_edge_radius_m,
-        minimum_exit_progress_m)
+        frames, game, approach_lookback, exit_lookback, exit_confirmation,
+        near_ball_radius_m, pitch_margin_m, exit_outside_margin_m,
+        exit_crossing_margin_m)
     if not observations:
         return []
 
@@ -684,7 +695,6 @@ def detect_dead_ball_ranges(
                           for frame_id in range(segment_start, segment_end + 1)
                           if frame_id in observations]
         visible_baseline = median(item.visible_count for item in segment_values)
-        unassigned_baseline = median(item.unassigned_count for item in segment_values)
 
         # A whistle opens a pending candidate. Accumulate each cue independently
         # throughout the forward horizon so slowdown and ball stability need not
@@ -696,12 +706,11 @@ def detect_dead_ball_ranges(
             confirmation = _confirm_whistle_forward(
                 whistle_frame, whistle_followup_frames, observations,
                 segment_start, segment_end, window_frames, scan_step_frames,
-                visible_baseline, unassigned_baseline,
+                visible_baseline,
                 set_piece_ranges, set_piece_starts,
                 slowdown_ratio=player_slowdown_ratio,
                 minimum_speed_drop_mps=minimum_player_speed_drop_mps,
                 ball_stationary_radius_m=ball_stationary_radius_m,
-                unassigned_player_minimum=unassigned_player_minimum,
                 fewer_visible_margin=fewer_visible_margin,
                 leaving_players_minimum=leaving_players_minimum,
                 no_near_ball_fraction=0.7,
@@ -758,12 +767,11 @@ def detect_dead_ball_ranges(
         while frame_id + window_frames <= segment_end + 1:
             score, accepted, features = _onset_evidence(
                 frame_id, observations, segment_start, window_frames,
-                visible_baseline, unassigned_baseline, (),
+                visible_baseline, (),
                 set_piece_ranges, set_piece_starts,
                 slowdown_ratio=player_slowdown_ratio,
                 minimum_speed_drop_mps=minimum_player_speed_drop_mps,
                 ball_stationary_radius_m=ball_stationary_radius_m,
-                unassigned_player_minimum=unassigned_player_minimum,
                 fewer_visible_margin=fewer_visible_margin,
                 leaving_players_minimum=leaving_players_minimum,
                 no_near_ball_fraction=0.7,
