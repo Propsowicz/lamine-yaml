@@ -128,6 +128,7 @@ def detect_whistle_events(
     start_frame: int,
     end_frame: int,
     game: str,
+    video: str | Path,
     *,
     data_dir: str | Path | None = None,
     threshold: float = 0.01,
@@ -149,7 +150,7 @@ def detect_whistle_events(
         raise ValueError("Use merge_gap >= 0 and chunk_hops >= 4.")
 
     fps = GAMES[game]["fps"]
-    video = Path(video_path(game, data_dir))
+    video = Path(video)
     wav = Path(__file__).resolve().parents[2] / "output" / "whistle_full" / f"{video.stem}_{start_frame}_{end_frame}_audio_16k_mono.wav"
     model_cache = (Path(model_cache) if model_cache is not None
                    else Path(__file__).resolve().parents[2] / "output" / "tfhub_cache")
@@ -159,8 +160,6 @@ def detect_whistle_events(
 
     model_cache.mkdir(parents=True, exist_ok=True)
     os.environ["TFHUB_CACHE_DIR"] = str(model_cache.resolve())
-
-
 
     segment_start = start_frame / fps
     requested_end = (end_frame + 1) / fps
