@@ -114,11 +114,15 @@ if __name__ == '__main__':
     START_FRAME = 0
     END_FRAME = GAMES[GAME]["n_video_frames"] - 1
     
+    calc = PosessionCalc(start_frame=START_FRAME, end_frame=END_FRAME)
+    frames = calc.load_frames()
+    
     st_events = load_smart_tagging(
         start_frame=START_FRAME,
         end_frame=END_FRAME,
         code=SmartTaggingCode.SET_PIECES,
-    )
+    )   
+
     whistle_events = detect_whistle_events(
         start_frame=START_FRAME,
         end_frame=END_FRAME,
@@ -134,12 +138,6 @@ if __name__ == '__main__':
 
     ball_out_events = detect_ball_out_events(frames, PITCH_LENGTH, PITCH_WIDTH)
     dead_ball_ranges = detect_dead_ball_ranges(frames, st_events, touches)
-    
-    for t in touches:
-        if t.touch_type == TouchType.PASS:
-            print(f"{t.touch_timestamp}(frame:{t.touch_frame_id}): {t.touch_type} - {t.players}")
-        else:
-            print(f"{t.start_timestamp}:{t.end_timestamp}(frame:{t.start_frame_id}:{t.end_frame_id}): {t.touch_type} - {t.players}")
 
     labels = create_frame_labels(
         END_FRAME,

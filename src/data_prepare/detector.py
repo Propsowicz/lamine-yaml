@@ -84,6 +84,7 @@ class PlayersDetector:
                     player_result = self.player_model.predict(
                         frame,
                         imgsz=self.config.imgsz,
+                        device="cpu",
                         conf=self.config.conf,
                         iou=self.config.iou,
                         max_det=self.config.max_det,
