@@ -138,12 +138,6 @@ if __name__ == '__main__':
 
     ball_out_events = detect_ball_out_events(frames, PITCH_LENGTH, PITCH_WIDTH)
     dead_ball_ranges = detect_dead_ball_ranges(frames, st_events, touches)
-    
-    for t in touches:
-        if t.touch_type == TouchType.PASS:
-            print(f"{t.touch_timestamp}(frame:{t.touch_frame_id}): {t.touch_type} - {t.players}")
-        else:
-            print(f"{t.start_timestamp}:{t.end_timestamp}(frame:{t.start_frame_id}:{t.end_frame_id}): {t.touch_type} - {t.players}")
 
     labels = create_frame_labels(
         END_FRAME,
