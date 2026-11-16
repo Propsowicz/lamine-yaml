@@ -8,7 +8,6 @@ import soundfile as sf
 import shutil
 import subprocess
 import numpy as np
-import soundfile as sf
 import tensorflow as tf
 import tensorflow_hub as hub
 
