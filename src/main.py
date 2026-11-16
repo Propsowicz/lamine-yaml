@@ -20,6 +20,9 @@ from data_prepare.smart_tagging import SmartTaggingCode, load_smart_tagging
 
 from utils.setup_logging import setup_logging
 
+from whistle_analysis.whistle_events import detect_whistle_events
+from data_analyze.dead_ball_analyzer import find_first_half_dead_ball_range, find_second_half_dead_ball_range, find_dead_ball_range_after_game_finished
+
 ROOT_PATH = Path(__file__).resolve().parent.parent
 BASE_DIR = Path(__file__).resolve().parent
 DATA_PATH = str(ROOT_PATH / "data")
@@ -116,13 +119,20 @@ if __name__ == '__main__':
         end_frame=END_FRAME,
         code=SmartTaggingCode.SET_PIECES,
     )
-    
+    whistle_events = detect_whistle_events(
+        start_frame=START_FRAME,
+        end_frame=END_FRAME - 1,
+        video=VIDEO_PATH,
+        game=GAME,
+        threshold=0.01,
+    )
     calc = PosessionCalc(start_frame=START_FRAME, end_frame=END_FRAME)
     frames = calc.load_frames()
 
     touches = detect_ball_touches(frames, radius_m=1.5)
+
     ball_out_events = detect_ball_out_events(frames, PITCH_LENGTH, PITCH_WIDTH)
-    dead_ball_ranges = detect_dead_ball_ranges(frames, st_events, touches)
+    dead_ball_ranges = detect_dead_ball_ranges(frames, st_events, touches, whistle_events)
 
     for t in touches:
         if t.touch_type == TouchType.PASS:
