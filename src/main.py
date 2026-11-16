@@ -133,7 +133,7 @@ if __name__ == '__main__':
     touches = detect_ball_touches(frames, radius_m=1.5)
 
     ball_out_events = detect_ball_out_events(frames, PITCH_LENGTH, PITCH_WIDTH)
-    dead_ball_ranges = detect_dead_ball_ranges(frames, st_events, touches, whistle_events)
+    dead_ball_ranges = detect_dead_ball_ranges(frames, st_events, touches)
     
     for t in touches:
         if t.touch_type == TouchType.PASS:
