@@ -130,12 +130,14 @@ if __name__ == '__main__':
         game=GAME,
         threshold=0.01,
     )
-    outside_game_ranges = detect_outside_game_ranges(st_events, whistle_events, end_frame=END_FRAME,)
+    outside_game_ranges = detect_outside_game_ranges(st_events, whistle_events, end_frame=END_FRAME)
+    calc = PosessionCalc(start_frame=START_FRAME, end_frame=END_FRAME)
+    frames = calc.load_frames()
 
     touches = detect_ball_touches(frames, radius_m=1.5)
 
     ball_out_events = detect_ball_out_events(frames, PITCH_LENGTH, PITCH_WIDTH)
-    dead_ball_ranges = detect_dead_ball_ranges(frames, st_events, touches, whistle_events)
+    dead_ball_ranges = detect_dead_ball_ranges(frames, st_events, touches)
     
     for t in touches:
         if t.touch_type == TouchType.PASS:
