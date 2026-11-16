@@ -112,7 +112,7 @@ if __name__ == '__main__':
     teams = atd_metadata['teams']
 
     START_FRAME = 0
-    END_FRAME = GAMES[GAME]["n_video_frames"] - 1
+    END_FRAME = GAMES[GAME]["n_video_frames"]
     
     calc = PosessionCalc(start_frame=START_FRAME, end_frame=END_FRAME)
     frames = calc.load_frames()
