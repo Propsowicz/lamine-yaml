@@ -4,9 +4,19 @@
 
 1. Clone this repository.
 2. Create `data/tactical` directory (as shown in data structure below) and place match's data bundle there.
-3. Create `detection_models directory` in `src/data_prepare` and place football-player-detection.pt there (https://drive.google.com/uc?id=17PXFNlx-jI7VjVo_vQnB1sONjRyvoB-q - rememmber to trim version of model to match name given above).  
-4. Run `python main.py` in src/ directory. Since the whole detection of match is being performed it can take a while to complete process.
-5. Output is placed in `src/CK.csv`.
+3. Create `detection_models directory` in `src/data_prepare` and place football-player-detection.pt there (https://drive.google.com/uc?id=17PXFNlx-jI7VjVo_vQnB1sONjRyvoB-q - rememmber to trim version of model to match name given above).
+4. Install required libraries and executables(see below)  
+5. Run `python main.py` in src/ directory. Since the whole detection of match is being performed it can take a while to complete process.
+6. Output is placed in `src/CK.csv`.
+
+#### Required libraries:
+Install requirements from requirements.txt file
+
+#### Required executables:
+FFmpeg
+Whistle detection requires the FFmpeg command-line tools: ffmpeg and ffprobe.
+Install FFmpeg and make sure both executables are available on your PATH.
+https://ffmpeg.org/download.html
 
 ### Repository structure: 
 ```
@@ -26,6 +36,7 @@ data
 Our approach was based on few simple rules:
 - Possession is the period during which a team controls the ball. This includes situations where a player has direct control of the ball as well as sequences where teammates pass the ball between each other. To detect possession, we created a chain of ball-touch events that tracks the positions of the ball and players, calculates distances between them, and determines the type of ball-touch event that occurred.
 - Dead ball occurs whenever the ball goes out of the pitch or the game is stopped.
+- Periods outside of game time are not evaluated('X')
 - Unknown possession is assigned to every remaining frame that cannot be classified as either possession or dead ball.
 
 ## Problems
@@ -95,7 +106,7 @@ Whenever a SET-PIECE event was detected by smart-tagging, we labeled the interva
 
 ## Possible fixes
 
-- the plan were to detect refree's whistle to recognize match breaks better - we could not manage to make it work good enough to use it in our system, 
+- the plan were to detect refree's whistle to recognize match breaks better - we could not manage to make it work good enough to use it in our system,
 - the thing we did not touch was broadcast data - maybe we could took some more data from there.
 
 ## Internal assets
@@ -108,27 +119,4 @@ Whenever a SET-PIECE event was detected by smart-tagging, we labeled the interva
 ## External assets
 
 1. football-player-detection.pt - used in players detection, source: https://github.com/roboflow/sports, license: https://github.com/roboflow/sports/blob/main/LICENSE
-
-## Smart Tagging events - to remove?
-
-From the repository root, load the tactical XML with:
-
-```python
-from src.data_prepare.smart_tagging import load_smart_tagging
-
-events = load_smart_tagging()
-clip_events = load_smart_tagging(start_frame=11185, end_frame=18684)
-kickoffs = load_smart_tagging(event_types="Kick Off (Start)")
-```
-
-The loader reads `data/tactical/BAR-ATH_tactical_smart_tagging.xml` by default.
-Set `MTAH_DATA_DIR` or pass `data_dir` to use a different data directory.
-Each event has a `code`, `tags`, and start and end times in seconds and tactical
-video frames. Frame intervals include `start_frame` and exclude `end_frame`.
-Events are sorted by `start_frame`.
-`start_time` and `end_time` show elapsed tactical video time as `HH:MM:SS`,
-with fractional seconds dropped.
-The optional filter includes both requested frames and returns any event that
-overlaps that range with its original boundaries. Either filter bound can be omitted.
-Pass a string or a list of strings as `event_types` to match the XML's `Type`
-tag case-insensitively. You can combine this with the frame-range filter.
+2. Google YAMNet — used to score potential whistle events; downloaded and cached automatically. Source: TensorFlow Hub

@@ -126,7 +126,7 @@ if __name__ == '__main__':
         game=GAME,
         threshold=0.01,
     )
-    outside_game_ranges = detect_outside_game_ranges(st_events, whistle_events, end_frame=END_FRAME,)
+    outside_game_ranges = detect_outside_game_ranges(st_events, whistle_events, end_frame=END_FRAME)
     calc = PosessionCalc(start_frame=START_FRAME, end_frame=END_FRAME)
     frames = calc.load_frames()
 
