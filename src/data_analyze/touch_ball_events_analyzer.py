@@ -12,6 +12,7 @@ def create_frame_labels(
     events: Sequence[BallTouchEvent],
     dead_ball_ranges: Sequence[tuple[int, int]] = (),
     ball_out_events: Sequence[BallOutEvent] = (),
+    outside_game_ranges: Sequence[tuple[int, int]] = (),
 ) -> list[FrameLabel]:
     if number_of_frames < 0:
         raise ValueError("number_of_frames cannot be negative")
@@ -161,5 +162,7 @@ def create_frame_labels(
         if restart_label is not None:
             labels[restart_frame] = restart_label
 
+    for start_frame, end_frame in outside_game_ranges:
+        fill_range(start_frame, end_frame, "X")
     
     return labels

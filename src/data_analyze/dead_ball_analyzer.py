@@ -3,16 +3,18 @@ from collections.abc import Sequence
 from data_prepare.smart_tagging import SmartTaggingEvent
 from data_prepare.touch_ball_tracker import BallTouchEvent
 from models.frame import Frame
+from whistle_analysis.whistle_events import WhistleEvent
 
 
 def detect_dead_ball_ranges(
     frames: Sequence[Frame],
     st_events: Sequence[SmartTaggingEvent],
-    touches: Sequence[BallTouchEvent],
-) -> list[tuple[int, int]]:
+    touches: Sequence[BallTouchEvent]
+    ) -> list[tuple[int, int]]:
     """Return inclusive dead-ball frame ranges for set-piece events."""
     if not frames:
         return []
+
 
     analyzed_start_frame = min(frame.id for frame in frames)
     analyzed_end_frame = max(frame.id for frame in frames)
@@ -43,4 +45,6 @@ def detect_dead_ball_ranges(
         if dead_start <= dead_end:
             dead_ball_ranges.append((dead_start, dead_end))
 
-    return dead_ball_ranges
+    return sorted(dead_ball_ranges)
+
+    

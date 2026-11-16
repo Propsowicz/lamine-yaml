@@ -20,6 +20,9 @@ from data_prepare.smart_tagging import SmartTaggingCode, load_smart_tagging
 
 from utils.setup_logging import setup_logging
 
+from whistle_analysis.whistle_events import detect_whistle_events
+from data_analyze.outside_game_time_analyzer import detect_outside_game_ranges
+
 ROOT_PATH = Path(__file__).resolve().parent.parent
 BASE_DIR = Path(__file__).resolve().parent
 DATA_PATH = str(ROOT_PATH / "data")
@@ -108,22 +111,30 @@ if __name__ == '__main__':
     atd_metadata = load_atd_metadata(data_dir=DATA_PATH)
     teams = atd_metadata['teams']
 
-    START_FRAME = 1
-    END_FRAME = GAMES[GAME]["n_video_frames"]
+    START_FRAME = 0
+    END_FRAME = GAMES[GAME]["n_video_frames"] - 1
     
     st_events = load_smart_tagging(
         start_frame=START_FRAME,
         end_frame=END_FRAME,
         code=SmartTaggingCode.SET_PIECES,
     )
-    
+    whistle_events = detect_whistle_events(
+        start_frame=START_FRAME,
+        end_frame=END_FRAME,
+        video=VIDEO_PATH,
+        game=GAME,
+        threshold=0.01,
+    )
+    outside_game_ranges = detect_outside_game_ranges(st_events, whistle_events, end_frame=END_FRAME,)
     calc = PosessionCalc(start_frame=START_FRAME, end_frame=END_FRAME)
     frames = calc.load_frames()
 
     touches = detect_ball_touches(frames, radius_m=1.5)
-    ball_out_events = detect_ball_out_events(frames, PITCH_LENGTH, PITCH_WIDTH)
-    dead_ball_ranges = detect_dead_ball_ranges(frames, st_events, touches)
 
+    ball_out_events = detect_ball_out_events(frames, PITCH_LENGTH, PITCH_WIDTH)
+    dead_ball_ranges = detect_dead_ball_ranges(frames, st_events, touches, whistle_events)
+    
     for t in touches:
         if t.touch_type == TouchType.PASS:
             print(f"{t.touch_timestamp}(frame:{t.touch_frame_id}): {t.touch_type} - {t.players}")
@@ -136,7 +147,8 @@ if __name__ == '__main__':
         teams['away'],
         touches,
         dead_ball_ranges,
-        ball_out_events
+        ball_out_events,
+        outside_game_ranges
     )
     save_frame_labels_to_csv(labels, f"{args.result_name}.csv")
    
