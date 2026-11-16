@@ -4,13 +4,10 @@ import csv
 import json
 import math
 import os
-import soundfile as sf
 import shutil
 import subprocess
 import numpy as np
-import soundfile as sf
-import tensorflow as tf
-import tensorflow_hub as hub
+
 
 from dataclasses import dataclass
 from datetime import timedelta
@@ -48,6 +45,7 @@ class WhistleEvent:
 
 
 def load_yamnet(hub):
+    import tensorflow_hub as hub
     """Validate the cached download before asking TensorFlow to load it."""
     model_dir = Path(hub.resolve(MODEL_URL))
     if not any((model_dir / name).is_file()
@@ -89,6 +87,7 @@ def merge_candidates(scores, first_window, threshold, duration, gap_seconds):
 def _extract_audio(video: Path, wav: Path, ffmpeg: str, sample_rate: int,
                    start_seconds: float, end_seconds: float):
     """Extract and validate only the requested audio interval."""
+    import soundfile as sf
     wav.parent.mkdir(parents=True, exist_ok=True)
     ffprobe = str(Path(ffmpeg).with_name(
         "ffprobe.exe" if str(ffmpeg).lower().endswith(".exe") else "ffprobe"))
@@ -142,6 +141,10 @@ def detect_whistle_events(
     By default the game's tactical video, FPS, and YAMNet cache are used. Audio is
     extracted only from the requested interval; its WAV cache is keyed by that range.
     """
+    import soundfile as sf
+    import tensorflow as tf
+    import tensorflow_hub as hub
+
     if start_frame < 0 or end_frame < start_frame:
         raise ValueError("Use 0 <= start_frame <= end_frame (both inclusive).")
     if not 0 < threshold <= 1:

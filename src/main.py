@@ -114,11 +114,15 @@ if __name__ == '__main__':
     START_FRAME = 0
     END_FRAME = GAMES[GAME]["n_video_frames"] - 1
     
+    calc = PosessionCalc(start_frame=START_FRAME, end_frame=END_FRAME)
+    frames = calc.load_frames()
+    
     st_events = load_smart_tagging(
         start_frame=START_FRAME,
         end_frame=END_FRAME,
         code=SmartTaggingCode.SET_PIECES,
-    )
+    )   
+
     whistle_events = detect_whistle_events(
         start_frame=START_FRAME,
         end_frame=END_FRAME,
@@ -127,8 +131,6 @@ if __name__ == '__main__':
         threshold=0.01,
     )
     outside_game_ranges = detect_outside_game_ranges(st_events, whistle_events, end_frame=END_FRAME,)
-    calc = PosessionCalc(start_frame=START_FRAME, end_frame=END_FRAME)
-    frames = calc.load_frames()
 
     touches = detect_ball_touches(frames, radius_m=1.5)
 
