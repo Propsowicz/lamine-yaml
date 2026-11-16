@@ -127,16 +127,14 @@ class PlayersDetector:
                             )
                         )
 
-                    if not players:
-                        raise RuntimeError(
-                            f"No players detected in frame {frame_index}. "
-                            "Try lowering the confidence threshold."
+                    if players:
+                        previous_players = self.assign_players_to_teams(
+                            frame,
+                            players,
                         )
-
-                    previous_players = self.assign_players_to_teams(
-                        frame,
-                        players,
-                    )
+                    else:
+                        print(f"No players detected in frame {frame_index}.")
+                        previous_players = []
 
                 # Reuse players from the last detected frame.
                 result.append(
