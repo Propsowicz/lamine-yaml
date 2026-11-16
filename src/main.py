@@ -111,8 +111,8 @@ if __name__ == '__main__':
     atd_metadata = load_atd_metadata(data_dir=DATA_PATH)
     teams = atd_metadata['teams']
 
-    START_FRAME = 1
-    END_FRAME = GAMES[GAME]["n_video_frames"]
+    START_FRAME = 0
+    END_FRAME = GAMES[GAME]["n_video_frames"] - 1
     
     st_events = load_smart_tagging(
         start_frame=START_FRAME,
@@ -121,12 +121,12 @@ if __name__ == '__main__':
     )
     whistle_events = detect_whistle_events(
         start_frame=START_FRAME,
-        end_frame=END_FRAME - 1,
+        end_frame=END_FRAME,
         video=VIDEO_PATH,
         game=GAME,
         threshold=0.01,
     )
-    outside_game_ranges = detect_outside_game_ranges(st_events, whistle_events, end_frame=END_FRAME - 1,)
+    outside_game_ranges = detect_outside_game_ranges(st_events, whistle_events, end_frame=END_FRAME,)
     calc = PosessionCalc(start_frame=START_FRAME, end_frame=END_FRAME)
     frames = calc.load_frames()
 
