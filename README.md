@@ -65,7 +65,7 @@ Once the missing player was detected again, we adjusted the reappeared player's 
 
 4. Half-time detection
 
-tbd
+We used sound recognition to accurately detect the referee's final whistles, identifying the start of the match, half-time, and the end of the match.
 
 ## Rules
 
