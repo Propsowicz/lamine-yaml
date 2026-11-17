@@ -20,9 +20,6 @@ from data_prepare.smart_tagging import SmartTaggingCode, load_smart_tagging
 
 from utils.setup_logging import setup_logging
 
-from whistle_analysis.whistle_events import detect_whistle_events
-from data_analyze.outside_game_time_analyzer import detect_outside_game_ranges
-
 ROOT_PATH = Path(__file__).resolve().parent.parent
 BASE_DIR = Path(__file__).resolve().parent
 DATA_PATH = str(ROOT_PATH / "data")
@@ -127,14 +124,6 @@ if __name__ == '__main__':
         code=SmartTaggingCode.SET_PIECES,
     )   
 
-    whistle_events = detect_whistle_events(
-        start_frame=START_FRAME,
-        end_frame=END_FRAME,
-        video=VIDEO_PATH,
-        game=GAME,
-        threshold=0.01,
-    )
-    outside_game_ranges = detect_outside_game_ranges(st_events, whistle_events, end_frame=END_FRAME)
     touches = detect_ball_touches(frames, radius_m=1.5)
 
     ball_out_events = detect_ball_out_events(frames, PITCH_LENGTH, PITCH_WIDTH)
@@ -142,6 +131,7 @@ if __name__ == '__main__':
 
     labels = create_frame_labels(
         END_FRAME,
+        game,
         teams['home'],
         teams['away'],
         touches,

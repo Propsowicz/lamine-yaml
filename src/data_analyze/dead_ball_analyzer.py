@@ -3,8 +3,6 @@ from collections.abc import Sequence
 from data_prepare.smart_tagging import SmartTaggingEvent
 from data_prepare.touch_ball_tracker import BallTouchEvent
 from models.frame import Frame
-from whistle_analysis.whistle_events import WhistleEvent
-
 
 def detect_dead_ball_ranges(
     frames: Sequence[Frame],

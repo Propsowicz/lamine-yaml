@@ -5,18 +5,12 @@
 1. Clone this repository.
 2. Create `data/tactical` directory (as shown in data structure below) and place match's data bundle there.
 3. Create `detection_models directory` in `src/data_prepare` and place football-player-detection.pt there (https://drive.google.com/uc?id=17PXFNlx-jI7VjVo_vQnB1sONjRyvoB-q - rememmber to trim version of model to match name given above).
-4. Install required libraries and executables(see below)  
+4. Install required libraries(see below)  
 5. Run `python main.py` in src/ directory (optional param `--result-name` can be used to determine name of output file). Since the whole detection of match is being performed it can take a while to complete process.
 6. Output is placed in `src/CK.csv`.
 
 #### Required libraries:
 Install requirements from requirements.txt file
-
-#### Required executables:
-FFmpeg
-Whistle detection requires the FFmpeg command-line tools: ffmpeg and ffprobe.
-Install FFmpeg and make sure both executables are available on your PATH.
-https://ffmpeg.org/download.html
 
 ### Repository structure: 
 ```
@@ -119,4 +113,3 @@ Whenever a SET-PIECE event was detected by smart-tagging, we labeled the interva
 ## External assets
 
 1. football-player-detection.pt - used in players detection, source: https://github.com/roboflow/sports, license: https://github.com/roboflow/sports/blob/main/LICENSE
-2. Google YAMNet — used to score potential whistle events; downloaded and cached automatically. Source: TensorFlow Hub

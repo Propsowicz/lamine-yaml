@@ -7,7 +7,3 @@ kloppy
 matplotlib
 pandas
 python-dotenv
-tensorflow 
-tensorflow-hub 
-soundfile 
-setuptools<82
