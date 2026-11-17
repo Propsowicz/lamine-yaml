@@ -55,7 +55,7 @@ We then combined the players detected by our model with those already available 
 
 Newly detected players were assigned to the correct team using a combination of shirt colors, our own team detection, and existing team assignments from the ATD data. For example, if we detected five players belonging to Team 1, and four of them were already present in the ATD data, we assigned the newly detected player to the same team.
 
-3. Player overlaps and incorrect tracking assignments
+3. Player overlaps and incorrect tracking assignments - OUR SOLUTION WAS NOT CALIBRATED WELL ENOUGH - WE TURNED IT OFF
 
 We discovered that player tracking could fail when two players came very close to each other, for example, when fighting for position or challenging for the ball. In these situations, one player's detection would temporarily disappear. When tracking resumed, that player could be assigned an incorrect team.
 
@@ -106,6 +106,7 @@ Whenever a SET-PIECE event was detected by smart-tagging, we labeled the interva
 
 ## Possible fixes
 
+- with more time we should be able to calibrate incorrect tracking team assignments better
 - the plan were to detect refree's whistle to recognize match breaks better - we could not manage to make it work good enough to use it in our system,
 - the thing we did not touch was broadcast data - maybe we could took some more data from there.
 

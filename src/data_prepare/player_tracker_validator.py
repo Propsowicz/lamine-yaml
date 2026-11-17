@@ -32,6 +32,7 @@ def validate_player_tracking(
     reappearance_distance: float = 2.0,
     same_id_preference: float = 0.05,
 ) -> list[Player]:
+    # method not calibrated enough - had negative impact on result
     """
     Validates player identities across consecutive frames.
 

@@ -17,7 +17,6 @@ import logging
 from data_analyze.ball_out_analyzer import detect_ball_out_events
 from utils.constants import PITCH_LENGTH, PITCH_WIDTH
 from data_prepare.smart_tagging import SmartTaggingCode, load_smart_tagging
-
 from utils.setup_logging import setup_logging
 
 from whistle_analysis.whistle_events import detect_whistle_events
@@ -74,14 +73,14 @@ class PosessionCalc:
             current_frame: Frame = normalized_frames_from_atd[index]
             previous_frame: Frame = normalized_frames_from_atd[index-1]
 
-            if index > 0:
-                normalized_frames_from_atd[index].players = validate_player_tracking(
-                    current_players=current_frame.players,
-                    previous_players=previous_frame.players,
-                    max_tracking_distance=3.0,
-                    merge_distance=2.0,
-                    reappearance_distance=2.0,
-                )
+            # if index > 0:
+                # normalized_frames_from_atd[index].players = validate_player_tracking(
+                #     current_players=current_frame.players,
+                #     previous_players=previous_frame.players,
+                #     max_tracking_distance=3.0,
+                #     merge_distance=2.0,
+                #     reappearance_distance=2.0,
+                # )
 
             if index < len(frames_from_detection):
                 players: list[Player] = combiner.combine(

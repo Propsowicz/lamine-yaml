@@ -163,6 +163,6 @@ def create_frame_labels(
             labels[restart_frame] = restart_label
 
     for start_frame, end_frame in outside_game_ranges:
-        fill_range(start_frame, end_frame, "X")
+        fill_range(start_frame, end_frame, "D")
     
     return labels
