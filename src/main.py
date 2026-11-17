@@ -65,7 +65,6 @@ class PosessionCalc:
             save_frames(frames_from_detection, frames_from_detection_file_name)
             self.logger.info("Players detection finished.")
         
-
         combiner = Combiner(
                     max_match_distance=3.0,
                     team_confidence_threshold=0.90,
@@ -84,19 +83,23 @@ class PosessionCalc:
                     reappearance_distance=2.0,
                 )
 
-            combined_players: list[Player] = combiner.combine(
-                    players=normalized_frames_from_atd[index].players,
-                    detected_players=frames_from_detection[index].players,
-                    ball=current_frame.ball,
-                    players_by_team=current_frame.players_by_team,
-                )
-            for p in combined_players:
+            if index < len(frames_from_detection):
+                players: list[Player] = combiner.combine(
+                        players=normalized_frames_from_atd[index].players,
+                        detected_players=frames_from_detection[index].players,
+                        ball=current_frame.ball,
+                        players_by_team=current_frame.players_by_team,
+                    )
+            else:
+                players = normalized_frames_from_atd[index].players
+                
+            for p in players:
                 p.calculate_distance_to_ball(current_frame.ball)
             
             result.append(Frame(
                 current_frame.id,
                 current_frame.timestamp,
-                combined_players,
+                players,
                 current_frame.ball,
                 current_frame.players_by_team
             ))
@@ -104,6 +107,7 @@ class PosessionCalc:
         return result
         
 if __name__ == '__main__':
+    logger = logging.getLogger(__name__)
     parser = argparse.ArgumentParser()
     parser.add_argument("--result-name", type=str, default="CK", help="Name for the result file")
     args = parser.parse_args()
@@ -113,7 +117,7 @@ if __name__ == '__main__':
 
     START_FRAME = 0
     END_FRAME = GAMES[GAME]["n_video_frames"]
-    
+
     calc = PosessionCalc(start_frame=START_FRAME, end_frame=END_FRAME)
     frames = calc.load_frames()
     
@@ -131,9 +135,6 @@ if __name__ == '__main__':
         threshold=0.01,
     )
     outside_game_ranges = detect_outside_game_ranges(st_events, whistle_events, end_frame=END_FRAME)
-    calc = PosessionCalc(start_frame=START_FRAME, end_frame=END_FRAME)
-    frames = calc.load_frames()
-
     touches = detect_ball_touches(frames, radius_m=1.5)
 
     ball_out_events = detect_ball_out_events(frames, PITCH_LENGTH, PITCH_WIDTH)
@@ -149,4 +150,5 @@ if __name__ == '__main__':
         outside_game_ranges
     )
     save_frame_labels_to_csv(labels, f"{args.result_name}.csv")
+    logger.info(f"Calculations finished. Output: {args.result_name}.csv")
    

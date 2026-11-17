@@ -6,7 +6,7 @@
 2. Create `data/tactical` directory (as shown in data structure below) and place match's data bundle there.
 3. Create `detection_models directory` in `src/data_prepare` and place football-player-detection.pt there (https://drive.google.com/uc?id=17PXFNlx-jI7VjVo_vQnB1sONjRyvoB-q - rememmber to trim version of model to match name given above).
 4. Install required libraries and executables(see below)  
-5. Run `python main.py` in src/ directory. Since the whole detection of match is being performed it can take a while to complete process.
+5. Run `python main.py` in src/ directory (optional param `--result-name` can be used to determine name of output file). Since the whole detection of match is being performed it can take a while to complete process.
 6. Output is placed in `src/CK.csv`.
 
 #### Required libraries:
