@@ -71,7 +71,9 @@ class PosessionCalc:
         result: list[Frame] = []
         for index, _ in enumerate(normalized_frames_from_atd):
             current_frame: Frame = normalized_frames_from_atd[index]
-            previous_frame: Frame = normalized_frames_from_atd[index-1]
+
+            # turn off due to negative impact on result
+            # previous_frame: Frame = normalized_frames_from_atd[index-1]
 
             # if index > 0:
                 # normalized_frames_from_atd[index].players = validate_player_tracking(
