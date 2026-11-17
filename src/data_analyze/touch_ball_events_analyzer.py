@@ -2,18 +2,18 @@ from collections.abc import Sequence
 from typing import Literal
 from data_prepare.touch_ball_tracker import BallTouchEvent, TouchType
 from data_analyze.ball_out_analyzer import BallOutEvent
+from data_prepare.games import half_video_blocks
 FrameLabel = Literal["X", "D", "H", "A"]
-
 
 def create_frame_labels(
     number_of_frames: int,
+    game: str,
     home_team: str,
     away_team: str,
     events: Sequence[BallTouchEvent],
     dead_ball_ranges: Sequence[tuple[int, int]] = (),
-    ball_out_events: Sequence[BallOutEvent] = (),
-    outside_game_ranges: Sequence[tuple[int, int]] = (),
-) -> list[FrameLabel]:
+    ball_out_events: Sequence[BallOutEvent] = ()
+    ) -> list[FrameLabel]:
     if number_of_frames < 0:
         raise ValueError("number_of_frames cannot be negative")
 
@@ -162,7 +162,12 @@ def create_frame_labels(
         if restart_label is not None:
             labels[restart_frame] = restart_label
 
-    for start_frame, end_frame in outside_game_ranges:
-        fill_range(start_frame, end_frame, "X")
-    
+    half_ranges = [
+        (max(0, first_frame), min(number_of_frames - 1, last_frame))
+        for _, first_frame, last_frame in half_video_blocks(game)
+    ]
+    for frame in range(number_of_frames):
+        if not any(first_frame <= frame <= last_frame for first_frame, last_frame in half_ranges):
+            labels[frame] = "X"
+
     return labels
